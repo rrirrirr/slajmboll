@@ -1,13 +1,17 @@
 import { K } from './constants.js'
 import Actor from './actor.js'
 import { createSlime } from './graphics.js'
+import { Animation } from './Animations.js'
 import { events } from './events.js'
 import {
   startJump,
   startOppositeRun,
   startRun,
   startDash,
+  startAirDash,
   startDashJump,
+  startWallJump,
+  startStomp,
 } from './movements.js'
 
 export function Slime(
@@ -21,23 +25,51 @@ export function Slime(
   keys
 ) {
   const delayedActions = events.get('delayed actions')
+  const animations = events.get('animations')
   // const ao = actor() //actor object
   // const go =  //graphical object
   let _team = team
+
   const _played = true
   const _appearance = appearance
-  let areaWidth = constraints.rightBoundry - constraints.leftBoundry
-  let radius = dimensions.radius
-  let slimeWidth = (areaWidth / K) * radius * 2
-  let slimeHeight = (areaWidth / K) * radius
 
-  let _runAcceleration = (areaWidth / K) * 0.012
-  let _bonusStart = (areaWidth / K) * 0.028
-  let _dashAcceleration = (areaWidth / K) * 0.052
+  // let areaWidth = constraints.rightBoundry - constraints.leftBoundry
+  // let radius = dimensions.radius
+  // let slimeWidth = (areaWidth / K) * radius * 2
+  // let slimeHeight = (areaWidth / K) * radius
+
+  // let _runAcceleration = (areaWidth / K) * 0.012
+  // let _bonusStart = (areaWidth / K) * 0.028
+  // let _dashAcceleration = (areaWidth / K) * 0.052
+  // let bonusTreshold = _runAcceleration * 5
   // let _runDeacceleration =(areaWidth/K)*0.008
+
+  const setupConstants = (constraints) => {
+    areaWidth = constraints.rightBoundry - constraints.leftBoundry
+    radius = dimensions.radius
+    slimeWidth = (areaWidth / K) * radius * 2
+    slimeHeight = (areaWidth / K) * radius
+    _runAcceleration = (areaWidth / K) * 0.012
+    _bonusStart = _runAcceleration * 2
+    _dashAcceleration = (areaWidth / K) * 0.052
+    bonusTreshold = _runAcceleration * 5
+    // let _runDeacceleration =(areaWidth/K)*0.008
+  }
+
+  let areaWidth,
+    radius,
+    slimeWidth,
+    slimeHeight,
+    _runAcceleration,
+    _bonusStart,
+    _dashAcceleration,
+    bonusTreshold,
+    _runDeacceleration
+  setupConstants(constraints)
+
   let _bonusAcceleration = 1
-  let _jumpAcceleration = 1.0
-  let _bonusJumpAcceleration = 6.5
+  let _jumpAcceleration = 0.1
+  let _bonusJumpAcceleration = _jumpAcceleration * 2.0
   let _dashJumpAcceleration = 0.5
   let _downwardAcceleration = 0.5
 
@@ -51,7 +83,8 @@ export function Slime(
   let _isDashing = false
   let _isGrounded = true
   let _hasDirectionChangeBonus = false
-  let _isHuggingWall = false
+  let _isHuggingWall = 0
+  let _hasWallJump = true
 
   let _dashCD = false
 
@@ -73,276 +106,223 @@ export function Slime(
   go.style.width = `${slimeWidth}px`
   go.style.height = `${slimeHeight}px`
   // console.log(go)
-  game.go.appendChild(go)
+  game.go.appendchild(go)
   //
 
-  const _onJumpPressed = () => {
+  const _onjumppressed = () => {
     // console.log('jump ')
-
-    if ((_isGrounded || _isHuggingWall) && !_isJumping) {
-      _isJumping = true
-      _isGrounded = false
-      if (_isDashing) {
-        ao.addMovement(
-          startDashJump(
-            _dashAcceleration,
-            _runningDirection,
-            () => !_isJumping,
-            // () => (_isJumping = false)
+    if (_isjumping) return
+    if (_isgrounded) {
+      _isjumping = true
+      _isgrounded = false
+      if (_isdashing) {
+        ao.addmovement(
+          startdashjump(
+            _dashacceleration,
+            _runningdirection,
+            () => !_isjumping,
+            // () => (_isjumping = false)
             () => false
           )
         )
-      } else if (_hasDirectionChangeBonus) {
+      } else if (_isducking) {
+        console.log('duck jump')
+        ao.setmaxvelocity(1.5)
+        ao.addmovement(
+          startjump(
+            _jumpacceleration,
+            () => false,
+            // () => (_isjumping = false)
+            () => ao.resetmaxvelocity()
+          )
+        )
+      } else if (_hasdirectionchangebonus) {
         console.log('bonus jump')
-        ao.addMovement(
-          startJump(
-            _bonusJumpAcceleration,
-            () => !_isJumping,
-            // () => (_isJumping = false)
-            () => false
+        ao.setmaxvelocity(2.2)
+        ao.addmovement(
+          startjump(
+            _bonusjumpacceleration,
+            () => false,
+            // () => (_isjumping = false)
+            () => ao.resetmaxvelocity()
           )
         )
       } else {
-        ao.addMovement(
-          startJump(
-            _jumpAcceleration,
-            () => !_isJumping,
-            // () => (_isJumping = false)
-            () => false
+        ao.addmovement(
+          startjump(
+            _jumpacceleration,
+            () => !_isjumping,
+            // () => (_isjumping = false)
+            (frame) => {
+              console.log(frame)
+              if(frame <1) {
+                console.log('start floating')
+                // initfloat()
+              }
+            }
           )
         )
       }
+    } else if (_ishuggingwall !== 0 && _haswalljump) {
+      _haswalljump = false
+      ao.addmovement(
+        startwalljump(
+          _jumpacceleration,
+          -_ishuggingwall,
+          () => false,
+          // () => (_isjumping = false)
+          () => false
+        )
+      )
     }
 
-    // _isGrounded
-    // 	? _ao.addMovement(movements.jump.start(_ao))
-    // 	:	_isCloseToWall
-    // 	? movement.wallJump.start()
-    // 	: _doubleJumps > 0
-    // 	? movements.doubleJump.start()
+    // _isgrounded
+    // 	? _ao.addmovement(movements.jump.start(_ao))
+    // 	:	_isclosetowall
+    // 	? movement.walljump.start()
+    // 	: _doublejumps > 0
+    // 	? movements.doublejump.start()
     // 	: movements.jump.fail()
   }
 
-  const _onJumpReleased = () => {
+  const _onjumpreleased = () => {
     // console.log('jump release')
-    _isJumping = false
+    _isjumping = false
+  }
+
+  const _dashend = () => {
+    ao.resetmaxvelocity()
+    delayedactions.emit({
+      delay: 15,
+      execute: () => (_isdashing = false),
+    })
+    delayedactions.emit({
+      delay: 15,
+      execute: () => {
+        _dashcd = false
+      },
+    })
+    animations.emit(
+      animation(
+        15,
+        (frame) => {
+          go.style.background = `linear-gradient(180deg, grey ${frame / 3}%, ${
+            _appearance.color
+          } ${frame / 6}%) `
+          if (frame < 2) go.style.background = ''
+        },
+        (frame) => frame < 1
+      )
+    )
+    // _isDashing = false
+  }
+
+  const initDash = (direction) => {
+    _isDashing = true
+    _dashCD = true
+    ao.setMaxVelocity(2.2)
+    const killSignal = direction === -1 ? () => false : () => false
+
+    ao.addMovement(
+      _isGrounded
+        ? startDash(_dashAcceleration, direction, killSignal, _dashEnd)
+        : startAirDash(
+            _dashAcceleration,
+            direction,
+            ao._downwardAcceleration,
+            killSignal,
+            _dashEnd
+          )
+    )
+  }
+
+  const initRun = (direction) => {
+    const killSignal =
+      direction === -1
+        ? () => !_runningLeft || _runningDirection !== -1
+        : () => !_runningRight || _runningDirection !== 1
+    ao.addMovement(startRun(_runAcceleration, direction, killSignal))
+  }
+
+  const initBonusRun = (direction) => {
+    console.log('init bonus run ' + direction)
+
+    console.log(`${Math.sign(ao.getSpeed())} !== ${direction} &&
+      ${Math.abs(ao.getSpeed())} > ${bonusTreshold}`)
+
+    _hasDirectionChangeBonus = true
+    const killSignal =
+      direction === -1
+        ? () => !_runningLeft || _runningDirection !== -1
+        : () => !_runningRight || _runningDirection !== 1
+    ao.setMaxVelocity(0.15)
+    ao.addMovement(
+      startOppositeRun(_bonusStart, direction, killSignal, () => {
+        _hasDirectionChangeBonus = false
+        ao.resetMaxVelocity()
+      })
+    )
   }
 
   const _onMovementPress = (direction) => {
-    if (direction === -1 && _runningLeft !== _runningDirection) {
-      // console.log('movement ' + direction + ' rd ' + _runningDirection)
-      // console.log(_runningDirection !== -2)
-      if (_isDucking && !_dashCD) {
-        _runningLeft = direction
-        _runningDirection = -1
-        _isDashing = true
-        _dashCD = true
-        _onTeamSwitch(3)
-        ao.setMaxVelocity(0.2)
-        ao.addMovement(
-          startDash(
-            _dashAcceleration,
-            direction,
-            () => {
-              return _runningLeft !== _runningDirection
-            },
-            () => {
-              ao.resetMaxVelocity()
-              delayedActions.emit({
-                delay: 15,
-                wait: () => {},
-                execute: () => (_isDashing = false),
-              })
-              delayedActions.emit({
-                delay: 300,
-                wait: (frames) => {
-                  go.style.background = `linear-gradient(180deg, grey ${
-                    frames / 3
-                  }%, gold ${frames / 6}%) `
-                },
-                execute: () => {
-                  _onTeamSwitch(_team)
-                  _dashCD = false
-                },
-              })
-              // _isDashing = false
-            }
-          )
-        )
-      } else if (_runningDirection !== -2 && _runningRight === 1) {
-        _runningLeft = direction
-        _runningDirection = -1
-        // console.log('bonus run')
-        ao.addMovement(
-          startRun(_runAcceleration, direction, () => {
-            // console.log(_runningDirection + ' !== ' + _runningLeft + ' || ')
-
-            return _runningLeft !== _runningDirection
-            // return !_isRunning
-          })
-        )
-        _hasDirectionChangeBonus = true
-        ao.addMovement(
-          startOppositeRun(
-            _bonusStart,
-            direction,
-            () => {
-              // console.log(
-              //   _runningDirection + ' !== ' + direction + ' || ' + !_isRunning
-              // )
-              // console.log('bonus')
-              // return _runningLeft !== direction
-              return _runningLeft !== _runningDirection
-
-              // return !_isRunning
-            },
-            () => {
-              _hasDirectionChangeBonus = false
-              // if (_runningLeft === -1 && _runningDirection === -1) {
-              //
-              //   _runningDirection = -2
-              //   _runningLeft = 0
-              //   console.log('trying for bonus')
-              //   _onMovementPress(-1)
-              // }
-              // _isRunning = false
-              // console.log(_isRunning)
-              // maxspeed = ...?
-            }
-          )
-        )
-      } else {
-        // _isRunning = true
-        _runningDirection = -1
-        _runningLeft = direction
-        // console.log('common run')
-        ao.addMovement(
-          startRun(_runAcceleration, direction, () => {
-            // console.log(_runningDirection + ' !== ' + _runningLeft + ' || ')
-
-            return _runningLeft !== _runningDirection
-            // return !_isRunning
-          })
-        )
-      }
-    } else if (direction === 1 && _runningRight !== _runningDirection) {
-      // console.log('movement ' + direction)
-      _runningRight = direction
-      _runningDirection = direction
-      if (_isDucking && !_dashCD) {
-        ao.setMaxVelocity(0.2)
-        _isDashing = true
-        _dashCD = true
-        _onTeamSwitch(3)
-        ao.addMovement(
-          startDash(
-            _dashAcceleration,
-            direction,
-            () => {
-              return _runningRight !== _runningDirection
-            },
-            () => {
-              ao.resetMaxVelocity()
-              delayedActions.emit({
-                delay: 15,
-                wait: () => {},
-                execute: () => (_isDashing = false),
-              })
-              delayedActions.emit({
-                delay: 300,
-                wait: (frames) => {
-                  go.style.background = `linear-gradient(180deg, grey ${
-                    frames / 3
-                  }%, gold ${frames / 6}%) `
-                },
-                execute: () => {
-                  _onTeamSwitch(_team)
-                  _dashCD = false
-                },
-              })
-            }
-          )
-        )
-      } else if (_runningLeft === -1) {
-        // console.log('bonus run right')
-        ao.addMovement(
-          startRun(_runAcceleration, direction, () => {
-            // console.log(
-            //   _runningDirection + ' !== ' + _runningRight + ' || '
-            // )
-
-            return _runningRight !== _runningDirection
-
-            // return _runningRight !== direction
-            // return !_isRunning
-          })
-        )
-        _hasDirectionChangeBonus = true
-
-        ao.addMovement(
-          startOppositeRun(
-            _bonusStart,
-            direction,
-            () => {
-              // console.log(
-              //   _runningDirection + ' !== ' + direction + ' || ' + !_isRunning
-              // )
-              // return _runningRight !== direction
-              return _runningRight !== _runningDirection
-
-              // return !_isRunning
-            },
-            () => {
-              _hasDirectionChangeBonus = false
-              // _isRunning = false
-              // console.log(_isRunning)
-              // maxspeed = ...?
-              // console.log('trying for bonus')
-              // _onMovementPress(1)
-            }
-          )
-        )
-      } else {
-        // _isRunning = true
-        _runningRight = direction
-        ao.addMovement(
-          startRun(_runAcceleration, direction, () => {
-            // console.log(
-            //   _runningDirection + ' !== ' + _runningRight + ' || '
-            // )
-
-            return _runningRight !== _runningDirection
-
-            // return _runningRight !== direction
-            // return !_isRunning
-          })
-        )
-      }
+    if (direction === -1) {
+      if (_runningLeft) return
+      _runningLeft = true
+    } else {
+      if (_runningRight) return
+      _runningRight = true
     }
+
+    if (_isDucking && !_dashCD) {
+      initDash(direction)
+      // return
+    }
+    if (
+      _isGrounded &&
+      !_isDashing &&
+      Math.sign(ao.getSpeed()) !== direction &&
+      Math.abs(ao.getSpeed()) > bonusTreshold
+    ) {
+      initBonusRun(direction)
+    }
+    // if (direction !== _runningDirection) {
+    initRun(direction)
+    // }
+    _runningDirection = direction
   }
+
   const _onMovementRelease = (direction) => {
     console.log('released ' + direction)
-    if (_runningLeft === direction) {
-      _runningLeft = 0
+    if (direction === -1) {
+      _runningLeft = false
       // _isRunning = false
     } else {
-      _runningRight = 0
-    }
-  }
-
-  const _onMovementReleaseOld = (direction) => {
-    console.log('released ' + direction)
-    if (_runningDirection === direction) {
-      _runningDirection = 0
-      _isRunning = false
+      _runningRight = false
     }
   }
 
   const _onDuckPress = () => {
     _isDucking = true
+    if (!_isGrounded) {
+      delayedActions.emit({
+        delay: 10,
+        execute: () => {
+          if (_isDucking) {
+            ao.addMovement(
+              startStomp(_jumpAcceleration * 0.5, () => {
+                return !_isDucking || _isGrounded
+              })
+            )
+          }
+        },
+      })
+    }
   }
   const _onDuckRelease = () => {
-    _isDucking = false
+    delayedActions.emit({
+      delay: 10,
+      execute: () => (_isDucking = false),
+    })
   }
 
   const _onGameStart = (data) => {}
@@ -359,47 +339,47 @@ export function Slime(
 
   const _onGroundHit = () => {
     _isGrounded = true
+    _hasWallJump = true
     // _isGrounded = true
   }
 
   const _onWallHit = (event) => {
-    if (event === 1 || event === -1) {
-      _isHuggingWall = true
+    if (event !== 0) {
+      _isHuggingWall = event
     } else {
       delayedActions.emit({
         delay: 10,
-        wait: () => {},
-        execute: () => (_isHuggingWall = false),
+        execute: () => (_isHuggingWall = 0),
       })
     }
     // _wallHit = true
   }
 
   const _onResize = (newSize) => {
-    areaWidth = newSize.rightBoundry - newSize.leftBoundry
-    slimeWidth = (areaWidth / K) * radius * 2
-    slimeHeight = (areaWidth / K) * radius
+    // areaWidth = newSize.rightBoundry - newSize.leftBoundry
+    // slimeWidth = (areaWidth / K) * radius * 2
+    // slimeHeight = (areaWidth / K) * radius
+    setupConstants(newSize)
     go.style.width = `${slimeWidth}px`
     go.style.height = `${slimeHeight}px`
     console.log(slimeWidth)
   }
 
   const _onTeamSwitch = (team) => {
-    go.classList.remove('dashCd')
-    if (team === 3) {
-      go.classList.add('dashCd')
-      go.classList.remove('teamColorTwo')
-      go.classList.remove('teamColorOne')
-    } else if (team === 1) {
+    // go.classList.remove('dashCd')
+    if (team === 1) {
       _team = team
       go.classList.add('teamColorOne')
       go.classList.remove('teamColorTwo')
+      _appearance.color = 'gold'
     } else {
       _team = team
       go.classList.add('teamColorTwo')
       go.classList.remove('teamColorOne')
+      _appearance.color = 'crimson'
     }
   }
+  _onTeamSwitch(team)
 
   const _listeners = [
     keys.jumpPress.subscribe(_onJumpPressed),

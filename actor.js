@@ -71,6 +71,10 @@ export default function Actor(
   const groundHitEvent = Event('ground hit')
   const wallHitEvent = Event('wall hit')
 
+  const getSpeed = () => {
+    return _velocity.x
+  }
+
   const addMovement = (movement) => {
     // console.log('adding movement')
     // console.log(movement)
@@ -90,7 +94,7 @@ export default function Actor(
       const update = movement.next()
       _velocity.x += update.x
       _velocity.y += update.y
-      if (movement.ended()) console.log('movement filtered')
+      // if (movement.ended()) console.log('movement filtered')
       return !movement.ended()
     })
   }
@@ -163,16 +167,16 @@ export default function Actor(
       nextPos.x = _leftBoundry + realRadius
       _velocity.x = 0
       wallHitEvent.emit(-1)
-			wallIshugged = true
+      wallIshugged = true
     } else if (nextPos.x + realRadius > _rightBoundry) {
       // console.log('wall hit')
       nextPos.x = _rightBoundry - realRadius
       _velocity.x = 0
       wallHitEvent.emit(1)
-			wallIshugged = true
+      wallIshugged = true
     } else if (wallIshugged) {
-			wallIshugged = false
-			wallHitEvent.emit(0)
+      wallIshugged = false
+      wallHitEvent.emit(0)
     }
     pos.x = nextPos.x
     pos.y = nextPos.y
@@ -194,7 +198,18 @@ export default function Actor(
 
   resizeEvent.subscribe(_onResize)
 
-  return { addMovement, update, groundHitEvent, wallHitEvent, pos, setMaxVelocity, resetMaxVelocity, _velocity }
+  return {
+    addMovement,
+    update,
+    groundHitEvent,
+    wallHitEvent,
+    pos,
+    setMaxVelocity,
+    resetMaxVelocity,
+    _velocity,
+    getSpeed,
+_downwardAcceleration
+  }
 }
 // const render = (go, pos, radius) => {
 //   go.style.top = `${pos.y - radius}px`

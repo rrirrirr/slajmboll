@@ -35,7 +35,7 @@ const area = document.querySelector('#main')
 let delayedActions = []
 let animations = []
 const delayedActionsEvent = Event('delayed actions')
-const animationEvent = Event('animation')
+const animationEvent = Event('animations')
 
 const field = { width: 0, height: 0 }
 const units = []
@@ -49,6 +49,11 @@ const onDelayedActions = (action) => {
   delayedActions.push(action)
 }
 delayedActionsEvent.subscribe(onDelayedActions)
+const onAnimationAdd = (animation) => {
+  console.log('adding anim')
+  animations.push(animation)
+}
+animationEvent.subscribe(onAnimationAdd)
 
 // let players = 1
 const players = []
@@ -283,7 +288,7 @@ function gameLoop() {
 
   animations = animations.filter((animation) => {
 		animation.next()
-		return animation.ended()
+		return !animation.ended()
   })
 
   slimes.forEach((slime) => slime.update())

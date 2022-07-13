@@ -51,14 +51,36 @@ function Movement(move) {
 export const startJump = (acceleration, killSignal, end) => {
   const fm = frameMovement(
     35,
-    () => {
-      return -acceleration
+    (frame) => {
+      return -acceleration*((frame**2)/50)
     },
     killSignal,
     end
   )
   return Movement(() => {
     return { x: 0, y: fm.next().value }
+  })
+}
+
+export const startWallJump = (
+  acceleration,
+  direction,
+  killSignal,
+  end = () => {}
+) => {
+  console.log('wall jump')
+  const fm = frameMovement(
+    35,
+    (frame) => {
+      console.log(direction * acceleration*((frame**2)/200))
+      return { x: direction * acceleration*((frame**2)/200), y: -acceleration*((frame**2)/200) }
+    },
+    killSignal,
+    end
+  )
+  return Movement(() => {
+    return fm.next().value
+    // return { x: fm.next().value, y: 0 }
   })
 }
 
@@ -83,7 +105,7 @@ export const startRunnew = (acceleration, direction, killSignal) => {
 }
 
 export const startOppositeRun = (acceleration, direction, killSignal, end) => {
-  const fm = frameMovement(10, () => direction * acceleration, killSignal, end)
+  const fm = frameMovement(20, () => direction * acceleration, killSignal, end)
   return Movement(() => {
     return { x: fm.next().value, y: 0 }
   })
@@ -102,11 +124,42 @@ export const startDash = (
   killSignal,
   end = () => {}
 ) => {
-  const fm = frameMovement(115, () => direction * acceleration, killSignal, end)
+  const fm = frameMovement(
+    35,
+    (frame) => {
+      // console.log(direction * acceleration * ((frame * frame) / 2000))
+      return direction * acceleration * ((frame * frame) / 3000)
+    },
+    killSignal,
+    end
+  )
   return Movement(() => {
     return { x: fm.next().value, y: 0 }
   })
 }
+
+export const startAirDash = (
+  acceleration,
+  direction,
+  gravity,
+  killSignal,
+  end = () => {}
+) => {
+  const fm = frameMovement(
+    35,
+    (frame) => {
+      // console.log(direction * acceleration * ((frame * frame) / 2000))
+      console.log('air dashing')
+      return { x: direction * acceleration * ((frame * frame) / 3000), y: -gravity }
+    },
+    killSignal,
+    end
+  )
+  return Movement(() => {
+    return fm.next().value
+  })
+}
+
 
 export const startDashJump = (
   acceleration,
@@ -129,6 +182,22 @@ export const startDashJump = (
   })
 }
 
+export const startStomp = (acceleration, killSignal, end = () => {}) => {
+  console.log('stomp')
+  const fm = frameMovement(
+    0,
+    () => {
+      return { x: 0, y: acceleration }
+    },
+    killSignal,
+    end
+  )
+  return Movement(() => {
+    return fm.next().value
+    // return { x: fm.next().value, y: 0 }
+  })
+}
+
 //runs callback n frames or until terminated. Send 0 as parameter for continuous mode
 function* frameMovement(frames, callback, termination, end = () => {}) {
   // console.log('start command')
@@ -138,11 +207,11 @@ function* frameMovement(frames, callback, termination, end = () => {}) {
   while ((currentFrame-- > 0 || continuous) && !termination()) {
     // if (!continuous) console.log(currentFrame)
     // console.log('loop command')
-    yield callback()
+    yield callback(currentFrame)
   }
-  console.log('move ended')
+  // console.log('move ended')
   // console.log('end command ' + ((false || true) && !termination()));
-  end()
+  end(currentFrame)
   return false
 }
 
