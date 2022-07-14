@@ -24,47 +24,35 @@ export function Slime(
   game,
   keys
 ) {
-  const delayedActions = events.get('delayed actions')
-  const animations = events.get('animations')
-  // const ao = actor() //actor object
-  // const go =  //graphical object
+  const _delayedActions = events.get('delayed actions')
+  const _animations = events.get('animations')
   let _team = team
-
   const _played = true
   const _appearance = appearance
-
-  // let areaWidth = constraints.rightBoundry - constraints.leftBoundry
-  // let radius = dimensions.radius
-  // let slimeWidth = (areaWidth / K) * radius * 2
-  // let slimeHeight = (areaWidth / K) * radius
-
-  // let _runAcceleration = (areaWidth / K) * 0.012
-  // let _bonusStart = (areaWidth / K) * 0.028
-  // let _dashAcceleration = (areaWidth / K) * 0.052
-  // let bonusTreshold = _runAcceleration * 5
-  // let _runDeacceleration =(areaWidth/K)*0.008
+  const _game = game
 
   const setupConstants = (constraints) => {
-    areaWidth = constraints.rightBoundry - constraints.leftBoundry
-    radius = dimensions.radius
-    slimeWidth = (areaWidth / K) * radius * 2
-    slimeHeight = (areaWidth / K) * radius
-    _runAcceleration = (areaWidth / K) * 0.012
+    _areaWidth = constraints.rightBoundry - constraints.leftBoundry
+    _radius = dimensions.radius
+    _slimeWidth = (_areaWidth / K) * _radius * 2
+    _slimeHeight = (_areaWidth / K) * _radius
+    _runAcceleration = (_areaWidth / K) * 0.012
     _bonusStart = _runAcceleration * 2
-    _dashAcceleration = (areaWidth / K) * 0.052
-    bonusTreshold = _runAcceleration * 5
+    _dashAcceleration = (_areaWidth / K) * 0.052
+    _bonusTreshold = _runAcceleration * 5
     // let _runDeacceleration =(areaWidth/K)*0.008
   }
 
-  let areaWidth,
-    radius,
-    slimeWidth,
-    slimeHeight,
+  let _areaWidth,
+    _radius,
+    _slimeWidth,
+    _slimeHeight,
     _runAcceleration,
     _bonusStart,
     _dashAcceleration,
-    bonusTreshold,
+    _bonusTreshold,
     _runDeacceleration
+
   setupConstants(constraints)
 
   let _bonusAcceleration = 1
@@ -88,8 +76,6 @@ export function Slime(
 
   let _dashCD = false
 
-  // const _activeJump = false
-  // const _activeRun = null
   let ao = Actor(
     pos,
     { x: 0, y: 0 }, // velocity,
@@ -101,61 +87,58 @@ export function Slime(
     game.sizeChange
   )
 
-  //  const newSlime = document.createElement("div");
   const go = createSlime(appearance)
-  go.style.width = `${slimeWidth}px`
-  go.style.height = `${slimeHeight}px`
-  // console.log(go)
-  game.go.appendchild(go)
-  //
+  go.style.width = `${_slimeWidth}px`
+  go.style.height = `${_slimeHeight}px`
+  _game.go.appendChild(go)
 
-  const _onjumppressed = () => {
+  const _onJumpPressed = () => {
     // console.log('jump ')
-    if (_isjumping) return
-    if (_isgrounded) {
-      _isjumping = true
-      _isgrounded = false
-      if (_isdashing) {
-        ao.addmovement(
-          startdashjump(
-            _dashacceleration,
-            _runningdirection,
-            () => !_isjumping,
+    if (_isJumping) return
+    if (_isGrounded) {
+      _isJumping = true
+      _isGrounded = false
+      if (_isDashing) {
+        ao.addMovement(
+          startDashJump(
+            _dashAcceleration,
+            _runningDirection,
+            () => !_isJumping,
             // () => (_isjumping = false)
             () => false
           )
         )
-      } else if (_isducking) {
+      } else if (_isDucking) {
         console.log('duck jump')
-        ao.setmaxvelocity(1.5)
-        ao.addmovement(
-          startjump(
-            _jumpacceleration,
+        ao.setMaxVelocity(1.5)
+        ao.addMovement(
+          startJump(
+            _jumpAcceleration,
             () => false,
             // () => (_isjumping = false)
-            () => ao.resetmaxvelocity()
+            () => ao.resetMaxVelocity()
           )
         )
-      } else if (_hasdirectionchangebonus) {
+      } else if (_hasDirectionChangeBonus) {
         console.log('bonus jump')
-        ao.setmaxvelocity(2.2)
-        ao.addmovement(
-          startjump(
-            _bonusjumpacceleration,
+        ao.setMaxVelocity(2.2)
+        ao.addMovement(
+          startJump(
+            _bonusJumpAcceleration,
             () => false,
             // () => (_isjumping = false)
-            () => ao.resetmaxvelocity()
+            () => ao.resetMaxVelocity()
           )
         )
       } else {
-        ao.addmovement(
-          startjump(
-            _jumpacceleration,
-            () => !_isjumping,
+        ao.addMovement(
+          startJump(
+            _jumpAcceleration,
+            () => !_isJumping,
             // () => (_isjumping = false)
             (frame) => {
               console.log(frame)
-              if(frame <1) {
+              if (frame < 1) {
                 console.log('start floating')
                 // initfloat()
               }
@@ -163,12 +146,12 @@ export function Slime(
           )
         )
       }
-    } else if (_ishuggingwall !== 0 && _haswalljump) {
-      _haswalljump = false
-      ao.addmovement(
-        startwalljump(
-          _jumpacceleration,
-          -_ishuggingwall,
+    } else if (_isHuggingWall !== 0 && _hasWallJump) {
+      _hasWallJump = false
+      ao.addMovement(
+        startWallJump(
+          _jumpAcceleration,
+          -_isHuggingWall,
           () => false,
           // () => (_isjumping = false)
           () => false
@@ -185,25 +168,25 @@ export function Slime(
     // 	: movements.jump.fail()
   }
 
-  const _onjumpreleased = () => {
+  const _onJumpReleased = () => {
     // console.log('jump release')
-    _isjumping = false
+    _isJumping = false
   }
 
-  const _dashend = () => {
-    ao.resetmaxvelocity()
-    delayedactions.emit({
+  const _dashEnd = () => {
+    ao.resetMaxVelocity()
+    _delayedActions.emit({
       delay: 15,
-      execute: () => (_isdashing = false),
+      execute: () => (_isDashing = false),
     })
-    delayedactions.emit({
+    _delayedActions.emit({
       delay: 15,
       execute: () => {
-        _dashcd = false
+        _dashCD = false
       },
     })
-    animations.emit(
-      animation(
+    _animations.emit(
+      Animation(
         15,
         (frame) => {
           go.style.background = `linear-gradient(180deg, grey ${frame / 3}%, ${
@@ -217,7 +200,7 @@ export function Slime(
     // _isDashing = false
   }
 
-  const initDash = (direction) => {
+  const _initDash = (direction) => {
     _isDashing = true
     _dashCD = true
     ao.setMaxVelocity(2.2)
@@ -236,7 +219,7 @@ export function Slime(
     )
   }
 
-  const initRun = (direction) => {
+  const _initRun = (direction) => {
     const killSignal =
       direction === -1
         ? () => !_runningLeft || _runningDirection !== -1
@@ -244,11 +227,11 @@ export function Slime(
     ao.addMovement(startRun(_runAcceleration, direction, killSignal))
   }
 
-  const initBonusRun = (direction) => {
+  const _initBonusRun = (direction) => {
     console.log('init bonus run ' + direction)
 
     console.log(`${Math.sign(ao.getSpeed())} !== ${direction} &&
-      ${Math.abs(ao.getSpeed())} > ${bonusTreshold}`)
+      ${Math.abs(ao.getSpeed())} > ${_bonusTreshold}`)
 
     _hasDirectionChangeBonus = true
     const killSignal =
@@ -274,19 +257,19 @@ export function Slime(
     }
 
     if (_isDucking && !_dashCD) {
-      initDash(direction)
+      _initDash(direction)
       // return
     }
     if (
       _isGrounded &&
       !_isDashing &&
       Math.sign(ao.getSpeed()) !== direction &&
-      Math.abs(ao.getSpeed()) > bonusTreshold
+      Math.abs(ao.getSpeed()) > _bonusTreshold
     ) {
-      initBonusRun(direction)
+      _initBonusRun(direction)
     }
     // if (direction !== _runningDirection) {
-    initRun(direction)
+    _initRun(direction)
     // }
     _runningDirection = direction
   }
@@ -304,7 +287,7 @@ export function Slime(
   const _onDuckPress = () => {
     _isDucking = true
     if (!_isGrounded) {
-      delayedActions.emit({
+      _delayedActions.emit({
         delay: 10,
         execute: () => {
           if (_isDucking) {
@@ -319,7 +302,7 @@ export function Slime(
     }
   }
   const _onDuckRelease = () => {
-    delayedActions.emit({
+    _delayedActions.emit({
       delay: 10,
       execute: () => (_isDucking = false),
     })
@@ -347,7 +330,7 @@ export function Slime(
     if (event !== 0) {
       _isHuggingWall = event
     } else {
-      delayedActions.emit({
+      _delayedActions.emit({
         delay: 10,
         execute: () => (_isHuggingWall = 0),
       })
@@ -402,7 +385,7 @@ export function Slime(
   ]
 
   const destroy = () => {
-    _go.destroy()
+    go.destroy()
     _listeners.forEach((listener) => listener.unsubscribe())
   }
 
@@ -413,31 +396,12 @@ export function Slime(
   const render = () => {
     go.style.borderTopLeftRadius = `${110 + ao._velocity.x * 2}px`
     go.style.borderTopRightRadius = `${110 - ao._velocity.x * 2}px`
-    go.style.height = `${slimeHeight - Math.abs(ao._velocity.x * 1)}px`
+    go.style.height = `${_slimeHeight - Math.abs(ao._velocity.x * 1)}px`
 
-    go.style.top = `${ao.pos.y - slimeHeight + Math.abs(ao._velocity.x * 1)}px`
-    go.style.left = `${ao.pos.x - slimeWidth / 2}px`
+    go.style.top = `${ao.pos.y - _slimeHeight + Math.abs(ao._velocity.x * 1)}px`
+    go.style.left = `${ao.pos.x - _slimeWidth / 2}px`
     // go.style.left = `${0  - slimeWidth/2}px`
   }
 
   return { update, render }
 }
-
-// export const createSlime = ({ ao, go, team }) => ({
-//   ao, //actor object
-//   go, //graphical object
-//   team,
-//   acceleration: 0.25,
-//   deacceleration: 0.9,
-//   bonusAcceleration: 1,
-//   jumpAcceleration: 0.5,
-//   downwardAcceleration: 0.5,
-//   bonuses: [],
-//   isRunning: false,
-//   isJumping: false,
-//   activeJump: false,
-//   activeRun: null,
-//   runningDirection: 0,
-//   updatePosition: updatePosition,
-//   render: render,
-// })

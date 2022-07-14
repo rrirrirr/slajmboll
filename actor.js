@@ -20,7 +20,7 @@ import { MAXVELOCITY, TERMINALVELOCITY, K } from './constants.js'
 //   updateMovements,
 // })
 export default function Actor(
-  pos_,
+  pos,
   velocity,
   radius,
   rightBoundry,
@@ -29,11 +29,11 @@ export default function Actor(
   maxVelocity,
   resizeEvent
 ) {
-  const pos = pos_
+  const _pos = pos
   const _velocity = velocity
-  let areaWidth = rightBoundry - leftBoundry
+  let _areaWidth = rightBoundry - leftBoundry
   let _radius = radius //collider
-  let realRadius = (areaWidth / K) * radius
+  let _realRadius = (areaWidth / K) * radius
   // console.log('rhadius ' + realRadius)
   let _rightBoundry = rightBoundry
   let _leftBoundry = leftBoundry
@@ -42,17 +42,14 @@ export default function Actor(
   let _maxVelocity = (areaWidth / K) * 0.1
   const _isRunning = false
   const _isJumping = false
-  let wallIshugged = false
+  let _wallIshugged = false
   // const _acceleration = 0.55
   const _deacceleration = (areaWidth / K) * 0.006
   const _bonusAcceleration = 1
   const _jumpAcceleration = 0.5
   const _downwardAcceleration = 0.5
 
-  let movements = []
-
-  const setRunning = (val) => (_isRunning = val)
-  const setJumping = (val) => (_isJumping = val)
+  let _movements = []
 
   const setBoundaries = (boundaries) => {
     const newRadius = (areaWidth / K) * radius
@@ -208,7 +205,7 @@ export default function Actor(
     resetMaxVelocity,
     _velocity,
     getSpeed,
-_downwardAcceleration
+    _downwardAcceleration,
   }
 }
 // const render = (go, pos, radius) => {

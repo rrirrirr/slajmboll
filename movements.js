@@ -73,7 +73,7 @@ export const startWallJump = (
     35,
     (frame) => {
       console.log(direction * acceleration*((frame**2)/200))
-      return { x: direction * acceleration*((frame**2)/200), y: -acceleration*((frame**2)/200) }
+      return { x: direction * acceleration*((frame**2)/20), y: -acceleration*((frame**2)/20) }
     },
     killSignal,
     end
