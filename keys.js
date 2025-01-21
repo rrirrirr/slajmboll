@@ -5,7 +5,6 @@ const playerKeys = []
 const keyButtons = new Map() //r
 
 const handleKeyDown = ({ code }) => {
-  // console.log(code)
   if (keyActions.has(code)) keyActions.get(code).press()
 }
 
@@ -41,13 +40,6 @@ const setupKeys = ({ up, right, down, left, jump }) => {
   return { movementPress, movementRelease, jumpPress, jumpRelease, duckPress, duckRelease }
 }
 
-// const setupKeys = (player) => {
-//   keyActions.set(player.keys.get('left'), com.run(slime, 'left'))
-//   keyActions.set(player.keys.get('right'), com.run(slime, 'right'))
-//   keyActions.set(player.keys.get('up'), com.jump(slime))
-//   keyActions.set(player.keys.get('down'), com.duck(slime))
-// }
-
 const clearKeys = () => {
   keyActions.clear()
 }
@@ -62,10 +54,6 @@ const initKeys = () => {
   keyHolder.set('p1right', 'ArrowRight')
   keyHolder.set('p1up', 'ArrowUp')
   keyHolder.set('p1down', 'ArrowDown')
-  // keyHolder.set('p1left', 'KeyH')
-  // keyHolder.set('p1right', 'KeyE')
-  // keyHolder.set('p1up', 'KeyY')
-
   keyHolder.set('p2left', 'KeyT')
   keyHolder.set('p2right', 'KeyS')
   keyHolder.set('p2up', 'KeyL')
@@ -104,32 +92,6 @@ const initKeys = () => {
     down: keyHolder.get('p1down'),
     left: keyHolder.get('p1left'),
   })
-
-  //map commands to keys
-  // keyActions.set(keyHolder.get('p1left'), com.runCommand(slimeBaller1, -1, 0))
-  // keyActions.set(keyHolder.get('p1right'), com.runCommand(slimeBaller1, 1, 0))
-  // keyActions.set(keyHolder.get('p1up'), com.jumpCommand(slimeBaller1))
-  // keyActions.set(keyHolder.get('p2left'), com.runCommand(slimeBaller2, -1, 0))
-  // keyActions.set(keyHolder.get('p2right'), com.runCommand(slimeBaller2, 1, 0))
-  // keyActions.set(keyHolder.get('p2up'), com.jumpCommand(slimeBaller2))
-
-  //map buttons to keys
-  // keyButtons.set('p1left', document.querySelector('#p1left'))
-  // keyButtons.set('p1right', document.querySelector('#p1right'))
-  // keyButtons.set('p1up', document.querySelector('#p1up'))
-  // keyButtons.set('p2left', document.querySelector('#p2left'))
-  // keyButtons.set('p2right', document.querySelector('#p2right'))
-  // keyButtons.set('p2up', document.querySelector('#p2up'))
-
-  // keyButtons.forEach((v, k) => {
-  //   // v.addEventListener("click", () =>  keyPromptModal.innerHTML = keyHolder.get(k).slice(-1));
-  //   v.addEventListener(
-  //     'click',
-  //     () => (keyPromptModal.innerHTML = `Press key to change ${k}`)
-  //   )
-  //   v.addEventListener('click', () => toggleHidden(keyPromptModal, 'block'))
-  //   v.addEventListener('click', () => changeKeyPrompt(k))
-  // })
 }
 
 const changeKeyPrompt = (keyToChange) => {

@@ -8,10 +8,10 @@ const createSlime = ({ color }) => {
 }
 
 const cleanKey = (key) => {
-    return key.replace(/Digit|Arrow|Key/, '')
+  return key.replace(/Digit|Arrow|Key/, '')
 }
 
-const waitingScreen = (num, team, keys)=> {
+const waitingScreen = (num, team, keys) => {
   const teamSwitchEvent = Event('team switch')
   const container = document.createElement('div')
   container.classList.add('teamTextContainer')
@@ -21,9 +21,6 @@ const waitingScreen = (num, team, keys)=> {
   nameContainer.classList.add('nameContainer')
   name.classList.add('name')
   name.innerHTML = `PLAYER ${num}`
-  // nameContainer.appendChild(name)
-  // container.appendChild(nameContainer)
-
   const teamLine = document.createElement('div')
   const team1 = document.createElement('span')
   const team2 = document.createElement('span')
@@ -38,9 +35,6 @@ const waitingScreen = (num, team, keys)=> {
     team1.classList.remove('teamOne')
     team2.classList.add('teamTwo')
   }
-  // teamLine.appendChild(team1)
-  // teamLine.appendChild(team2)
-  // container.appendChild(teamLine)
 
   nameContainer.appendChild(team1)
   nameContainer.appendChild(name)
@@ -49,7 +43,6 @@ const waitingScreen = (num, team, keys)=> {
 
   team1.onclick = () => teamSwitch(1)
   team2.onclick = () => teamSwitch(2)
-  // continer.style.backgroundColor = color
 
   const buttonLineOne = document.createElement('div')
   const up = document.createElement('button')

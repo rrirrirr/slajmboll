@@ -19,56 +19,6 @@ function Game() {
         constraints
       )
     })
-
-    // let slimeBaller1 = createSlime({
-    //   ao: createActor({
-    //     pos: { x: field.width / 4, y: field.height },
-    //     velocity: { x: 0, y: 0 },
-    //     radius: field.width * 0.04,
-    //     rightBoundry: field.width / 2 - field.width * 0.05,
-    //     leftBoundry: field.width * 0.04,
-    //     ground: field.height,
-    //     maxVelocity: 8.5,
-    //     updateMovements: updateSlimeMovements, //change this
-    //   }),
-    //   go: document.querySelector('#slime1'),
-    //   team: 1,
-    // })
-
-    // slimeBaller1.go.style.width = `${slimeBaller1.ao.radius * 2}px`
-    // slimeBaller1.go.style.height = `${slimeBaller1.ao.radius}px`
-
-    // let slimeBaller2 = createSlime({
-    //   ao: createActor({
-    //     pos: { x: 500, y: field.height },
-    //     velocity: { x: 0, y: 0 },
-    //     radius: field.width * 0.04,
-    //     rightBoundry: field.width - field.width * 0.04,
-    //     leftBoundry: field.width / 2 + field.width * 0.05,
-    //     ground: field.height,
-    //     maxVelocity: 8.5,
-    //     updateMovements: updateSlimeMovements,
-    //   }),
-    //   go: document.querySelector('#slime2'),
-    //   team: 2,
-    // })
-
-    // slimeBaller2.go.style.width = `${slimeBaller2.ao.radius * 2}px`
-    // slimeBaller2.go.style.height = `${slimeBaller2.ao.radius}px`
-
-    // let ball = createBall({
-    //   ao: createActor({
-    //     pos: { x: 200, y: 100 },
-    //     velocity: { x: 0, y: 0 },
-    //     radius: field.width * 0.02,
-    //     rightBoundry: field.width - field.width * 0.02,
-    //     leftBoundry: field.width * 0.02,
-    //     ground: field.height - field.width * 0.01, // give the players some leniency. Ball can be a couple of units underground
-    //     maxVelocity: 10.5,
-    //     updateMovements: updateBallPhysics,
-    //   }),
-    //   go: document.querySelector('.ball'),
-    // })
   }
 
   const ballPosition = (team) => {
@@ -82,7 +32,7 @@ function Game() {
   }
 
   const dropBall = (b) => {
-    b.downwardAcceleration = GRAVITY //GRAVITY;
+    b.downwardAcceleration = GRAVITY
   }
 
   const stopBall = (b) => {
@@ -99,7 +49,6 @@ function Game() {
 
   const resetPlayers = () => {
     slimes.forEach((slime) => {
-      // Object.assign(slime.ao, startPosition(slime.team))
       slime.ao = startPosition(slime.team)
       slime.ao.pos = startPosition(slime.team)
       slime.ao.velocity = { x: 0, y: 0 }
@@ -138,7 +87,6 @@ function Game() {
   const newGame = (players) => {
     clearPoints()
     init(players)
-    // newRound(Math.floor(Math.random() * 2) + 1)
   }
 
   const newRound = (team) => {
@@ -166,25 +114,19 @@ function Game() {
 }
 
 function WaitingGame(num, team = 1, keys) {
-  // console.log('starting waiting game')
   const _team = team
   const sizeChange = Event('sizeChange')
   const go = document.querySelector(`.playerPreview:nth-of-type(${num})`)
   const { screen, teamSwitchEvent } = waitingScreen(num, team, keys)
   go.appendChild(screen)
-  // const	_teamChange
   let rect = go.getBoundingClientRect()
-  // console.log('new window')
-  // console.log(rect)
-  // console.log(main.getBoundingClientRect().x)
   gameAdd.emit()
 
-	const onTeamChange = (team) => {
-		_team = team
-	}
+  const onTeamChange = (team) => {
+    _team = team
+  }
 
   const onSizeChange = () => {
-    // console.log('changing size of waiting game')
     const newRect = go.getBoundingClientRect()
     if (
       rect.bottom !== newRect.bottom ||
@@ -193,11 +135,6 @@ function WaitingGame(num, team = 1, keys) {
       rect.right !== newRect.right
     ) {
       rect = newRect
-      // console.log('change rect')
-      // console.log(rect)
-      // console.log('nnnn')
-      // console.log('left: ' + rect.left + ' mainx: ' + main.getBoundingClientRect().x)
-      // console.log(rect.left - main.getBoundingClientRect().x)
       sizeChange.emit({
         ground: rect.bottom,
         leftBoundry: rect.left - main.getBoundingClientRect().x,

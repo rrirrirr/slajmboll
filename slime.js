@@ -40,7 +40,6 @@ export function Slime(
     _bonusStart = _runAcceleration * 2
     _dashAcceleration = (_areaWidth / K) * 0.052
     _bonusTreshold = _runAcceleration * 5
-    // let _runDeacceleration =(areaWidth/K)*0.008
   }
 
   let _areaWidth,
@@ -93,7 +92,6 @@ export function Slime(
   _game.go.appendChild(go)
 
   const _onJumpPressed = () => {
-    // console.log('jump ')
     if (_isJumping) return
     if (_isGrounded) {
       _isJumping = true
@@ -104,7 +102,6 @@ export function Slime(
             _dashAcceleration,
             _runningDirection,
             () => !_isJumping,
-            // () => (_isjumping = false)
             () => false
           )
         )
@@ -115,7 +112,6 @@ export function Slime(
           startJump(
             _jumpAcceleration,
             () => false,
-            // () => (_isjumping = false)
             () => ao.resetMaxVelocity()
           )
         )
@@ -126,7 +122,6 @@ export function Slime(
           startJump(
             _bonusJumpAcceleration,
             () => false,
-            // () => (_isjumping = false)
             () => ao.resetMaxVelocity()
           )
         )
@@ -135,12 +130,10 @@ export function Slime(
           startJump(
             _jumpAcceleration,
             () => !_isJumping,
-            // () => (_isjumping = false)
             (frame) => {
               console.log(frame)
               if (frame < 1) {
                 console.log('start floating')
-                // initfloat()
               }
             }
           )
@@ -153,23 +146,14 @@ export function Slime(
           _jumpAcceleration,
           -_isHuggingWall,
           () => false,
-          // () => (_isjumping = false)
           () => false
         )
       )
     }
 
-    // _isgrounded
-    // 	? _ao.addmovement(movements.jump.start(_ao))
-    // 	:	_isclosetowall
-    // 	? movement.walljump.start()
-    // 	: _doublejumps > 0
-    // 	? movements.doublejump.start()
-    // 	: movements.jump.fail()
   }
 
   const _onJumpReleased = () => {
-    // console.log('jump release')
     _isJumping = false
   }
 
@@ -189,15 +173,13 @@ export function Slime(
       Animation(
         15,
         (frame) => {
-          go.style.background = `linear-gradient(180deg, grey ${frame / 3}%, ${
-            _appearance.color
-          } ${frame / 6}%) `
+          go.style.background = `linear-gradient(180deg, grey ${frame / 3}%, ${_appearance.color
+            } ${frame / 6}%) `
           if (frame < 2) go.style.background = ''
         },
         (frame) => frame < 1
       )
     )
-    // _isDashing = false
   }
 
   const _initDash = (direction) => {
@@ -210,12 +192,12 @@ export function Slime(
       _isGrounded
         ? startDash(_dashAcceleration, direction, killSignal, _dashEnd)
         : startAirDash(
-            _dashAcceleration,
-            direction,
-            ao._downwardAcceleration,
-            killSignal,
-            _dashEnd
-          )
+          _dashAcceleration,
+          direction,
+          ao._downwardAcceleration,
+          killSignal,
+          _dashEnd
+        )
     )
   }
 
@@ -258,7 +240,6 @@ export function Slime(
 
     if (_isDucking && !_dashCD) {
       _initDash(direction)
-      // return
     }
     if (
       _isGrounded &&
@@ -268,9 +249,7 @@ export function Slime(
     ) {
       _initBonusRun(direction)
     }
-    // if (direction !== _runningDirection) {
     _initRun(direction)
-    // }
     _runningDirection = direction
   }
 
@@ -278,7 +257,6 @@ export function Slime(
     console.log('released ' + direction)
     if (direction === -1) {
       _runningLeft = false
-      // _isRunning = false
     } else {
       _runningRight = false
     }
@@ -308,13 +286,13 @@ export function Slime(
     })
   }
 
-  const _onGameStart = (data) => {}
+  const _onGameStart = (data) => { }
 
   const _onGameEnd = (data) => {
     //destroy
   }
 
-  const _onRoundStart = (data) => {}
+  const _onRoundStart = (data) => { }
 
   const _onRoundEnd = (data) => {
     //suspend keys
@@ -323,7 +301,6 @@ export function Slime(
   const _onGroundHit = () => {
     _isGrounded = true
     _hasWallJump = true
-    // _isGrounded = true
   }
 
   const _onWallHit = (event) => {
@@ -335,13 +312,9 @@ export function Slime(
         execute: () => (_isHuggingWall = 0),
       })
     }
-    // _wallHit = true
   }
 
   const _onResize = (newSize) => {
-    // areaWidth = newSize.rightBoundry - newSize.leftBoundry
-    // slimeWidth = (areaWidth / K) * radius * 2
-    // slimeHeight = (areaWidth / K) * radius
     setupConstants(newSize)
     go.style.width = `${slimeWidth}px`
     go.style.height = `${slimeHeight}px`
@@ -349,7 +322,6 @@ export function Slime(
   }
 
   const _onTeamSwitch = (team) => {
-    // go.classList.remove('dashCd')
     if (team === 1) {
       _team = team
       go.classList.add('teamColorOne')
@@ -400,7 +372,6 @@ export function Slime(
 
     go.style.top = `${ao.pos.y - _slimeHeight + Math.abs(ao._velocity.x * 1)}px`
     go.style.left = `${ao.pos.x - _slimeWidth / 2}px`
-    // go.style.left = `${0  - slimeWidth/2}px`
   }
 
   return { update, render }
