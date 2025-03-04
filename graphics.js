@@ -13,69 +13,148 @@ const cleanKey = (key) => {
 
 const waitingScreen = (num, team, keys) => {
   const teamSwitchEvent = Event('team switch')
+
+  // Main player container
   const container = document.createElement('div')
-  container.classList.add('teamTextContainer')
+  container.classList.add('playerContainer')
 
-  const nameContainer = document.createElement('div')
-  const name = document.createElement('b')
-  nameContainer.classList.add('nameContainer')
-  name.classList.add('name')
-  name.innerHTML = `PLAYER ${num}`
-  const teamLine = document.createElement('div')
-  const team1 = document.createElement('span')
-  const team2 = document.createElement('span')
-  team1.innerHTML = 'TEAM GOLD'
-  team2.innerHTML = 'TEAM CRIM'
-  team1.classList.add('teamText')
-  team2.classList.add('teamText')
-  if (team === 1) {
-    team1.classList.add('teamOne')
-    team2.classList.remove('teamTwo')
-  } else {
-    team1.classList.remove('teamOne')
-    team2.classList.add('teamTwo')
-  }
+  // Player name
+  const playerLabel = document.createElement('div')
+  playerLabel.classList.add('playerLabel')
+  playerLabel.textContent = `P${num}`
+  container.appendChild(playerLabel)
 
-  nameContainer.appendChild(team1)
-  nameContainer.appendChild(name)
-  nameContainer.appendChild(team2)
-  container.appendChild(nameContainer)
+  // Controls with team arrows
+  const controlsContainer = document.createElement('div')
+  controlsContainer.classList.add('controlsContainer')
 
-  team1.onclick = () => teamSwitch(1)
-  team2.onclick = () => teamSwitch(2)
+  // Left team selector
+  const teamLeftSelector = document.createElement('span')
+  teamLeftSelector.classList.add('teamSelector', 'teamLeftSelector')
+  teamLeftSelector.innerHTML = '<'
+  controlsContainer.appendChild(teamLeftSelector)
 
+  // Panel background for keys
+  const keysPanelContainer = document.createElement('div')
+  keysPanelContainer.classList.add('keysPanelContainer')
+
+  // Keys container inside panel
+  const keysContainer = document.createElement('div')
+  keysContainer.classList.add('keysContainer')
+
+  // Top row (up key)
   const buttonLineOne = document.createElement('div')
-  const up = document.createElement('button')
-  up.innerHTML = cleanKey(keys.up)
-  buttonLineOne.appendChild(up)
+  buttonLineOne.classList.add('buttonLine')
 
+  // Empty slot for alignment
+  const emptyLeft = document.createElement('div')
+  emptyLeft.classList.add('keySlot')
+
+  const up = document.createElement('button')
+  up.textContent = cleanKey(keys.up)
+  up.classList.add('keyButton')
+
+  // Empty slot for alignment
+  const emptyRight = document.createElement('div')
+  emptyRight.classList.add('keySlot')
+
+  buttonLineOne.appendChild(emptyLeft)
+  buttonLineOne.appendChild(up)
+  buttonLineOne.appendChild(emptyRight)
+
+  // Bottom row (left, down, right keys)
   const buttonLineTwo = document.createElement('div')
+  buttonLineTwo.classList.add('buttonLine')
+
   const left = document.createElement('button')
-  left.innerHTML = cleanKey(keys.left)
+  left.textContent = cleanKey(keys.left)
+  left.classList.add('keyButton')
+
   const down = document.createElement('button')
-  down.innerHTML = cleanKey(keys.down)
+  down.textContent = cleanKey(keys.down)
+  down.classList.add('keyButton')
+
   const right = document.createElement('button')
-  right.innerHTML = cleanKey(keys.right)
+  right.textContent = cleanKey(keys.right)
+  right.classList.add('keyButton')
+
   buttonLineTwo.appendChild(left)
   buttonLineTwo.appendChild(down)
   buttonLineTwo.appendChild(right)
 
-  container.appendChild(buttonLineOne)
-  container.appendChild(buttonLineTwo)
+  // Build structure
+  keysContainer.appendChild(buttonLineOne)
+  keysContainer.appendChild(buttonLineTwo)
+  keysPanelContainer.appendChild(keysContainer)
+  controlsContainer.appendChild(keysPanelContainer)
 
-  const teamSwitch = (team) => {
-    if (team === 1) {
-      team1.classList.add('teamOne')
-      team2.classList.remove('teamTwo')
+  // Right team selector
+  const teamRightSelector = document.createElement('span')
+  teamRightSelector.classList.add('teamSelector', 'teamRightSelector')
+  teamRightSelector.innerHTML = '>'
+  controlsContainer.appendChild(teamRightSelector)
+
+  container.appendChild(controlsContainer)
+
+  // Set initial team if provided
+  if (team === 1) {
+    container.classList.add('teamOne')
+    playerLabel.classList.add('teamOneText')
+  } else if (team === 2) {
+    container.classList.add('teamTwo')
+    playerLabel.classList.add('teamTwoText')
+  }
+
+  // Team switching function
+  const teamSwitch = (newTeam) => {
+    if (newTeam === 1) {
+      container.classList.add('teamOne')
+      container.classList.remove('teamTwo')
+      playerLabel.classList.add('teamOneText')
+      playerLabel.classList.remove('teamTwoText')
       teamSwitchEvent.emit(1)
-    } else {
-      team1.classList.remove('teamOne')
-      team2.classList.add('teamTwo')
+    } else if (newTeam === 2) {
+      container.classList.add('teamTwo')
+      container.classList.remove('teamOne')
+      playerLabel.classList.add('teamTwoText')
+      playerLabel.classList.remove('teamOneText')
       teamSwitchEvent.emit(2)
     }
   }
 
+  // Add click handlers
+  teamLeftSelector.addEventListener('click', () => teamSwitch(1))
+  teamRightSelector.addEventListener('click', () => teamSwitch(2))
+
   return { screen: container, teamSwitchEvent }
 }
 
-export { createSlime, waitingScreen }
+// Create the "Add Player" button
+const createAddPlayerButton = (callback) => {
+  const button = document.createElement('div')
+  button.classList.add('addPlayerButton')
+  button.textContent = 'Press B to Add Player'
+  button.addEventListener('click', callback)
+  return button
+}
+
+// Create team headers
+const createTeamHeaders = () => {
+  const container = document.createElement('div')
+  container.classList.add('teamHeadersContainer')
+
+  const teamGold = document.createElement('div')
+  teamGold.classList.add('teamHeader', 'teamGoldHeader')
+  teamGold.textContent = 'TEAM GOLD'
+
+  const teamCrim = document.createElement('div')
+  teamCrim.classList.add('teamHeader', 'teamCrimHeader')
+  teamCrim.textContent = 'TEAM CRIM'
+
+  container.appendChild(teamGold)
+  container.appendChild(teamCrim)
+
+  return container
+}
+
+export { createSlime, waitingScreen, createAddPlayerButton, createTeamHeaders }

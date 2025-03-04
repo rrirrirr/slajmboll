@@ -1,7 +1,8 @@
-import { Event, events } from './events.js'
+import { Event } from './events.js'
 import { waitingScreen } from './graphics.js'
-const gameAdd = Event('game added')
-let main = document.querySelector('#main')
+
+// Create a global event for game additions
+const gameAddEvent = Event('game added')
 
 function Game() {
   let players = []
@@ -22,7 +23,7 @@ function Game() {
   }
 
   const ballPosition = (team) => {
-    team === 1
+    return team === 1
       ? { x: field.width / 4, y: field.height / 2 }
       : { x: (field.width * 3) / 4, y: field.height / 2 }
   }
@@ -110,52 +111,49 @@ function Game() {
       newRound(team)
     }
   }
+
   return { init, newRound, endRound, addGraphic }
 }
 
-function WaitingGame(num, team = 1, keys) {
-  const _team = team
-  const sizeChange = Event('sizeChange')
-  const go = document.querySelector(`.playerPreview:nth-of-type(${num})`)
+function WaitingGame(num, team = 0, keys) {
+  // Store reference to the main container and players area
+  const main = document.querySelector('#main')
+  const playersArea = document.querySelector('.playersArea')
+
+  // Create events
+  const sizeChangeEvent = Event('sizeChange')
+  const gameStartEvent = Event('game start')
+  const gameEndEvent = Event('game end')
+  const roundStartEvent = Event('round start')
+  const roundEndEvent = Event('round end')
+
+  // Create the waiting screen UI
   const { screen, teamSwitchEvent } = waitingScreen(num, team, keys)
-  go.appendChild(screen)
-  let rect = go.getBoundingClientRect()
-  gameAdd.emit()
 
-  const onTeamChange = (team) => {
-    _team = team
+  // Add to players area
+  if (playersArea) {
+    playersArea.appendChild(screen)
+  } else {
+    main.appendChild(screen)
   }
 
-  const onSizeChange = () => {
-    const newRect = go.getBoundingClientRect()
-    if (
-      rect.bottom !== newRect.bottom ||
-      rect.left !== newRect.left ||
-      rect.top !== newRect.top ||
-      rect.right !== newRect.right
-    ) {
-      rect = newRect
-      sizeChange.emit({
-        ground: rect.bottom,
-        leftBoundry: rect.left - main.getBoundingClientRect().x,
-        rightBoundry: rect.left - main.getBoundingClientRect().x + rect.width,
-      })
-    }
-  }
+  // Get dimensions based on main container
+  const rect = main.getBoundingClientRect()
 
-  window.onresize = onSizeChange
-  events.get('game added').subscribe(onSizeChange)
+  // Emit game added event to trigger resize for all games
+  gameAddEvent.emit()
 
+  // Return the game controller with its events
   return {
-    go,
-    gameStart: Event('waiting'),
-    gameEnd: Event('waiting'),
-    roundStart: Event('waiting'),
-    roundEnd: Event('waiting'),
-    sizeChange,
-    ground: rect.bottom,
-    leftBoundry: rect.left - main.getBoundingClientRect().x,
-    rightBoundry: rect.left - main.getBoundingClientRect().x + rect.width,
+    screen, // The created element
+    gameStart: gameStartEvent,
+    gameEnd: gameEndEvent,
+    roundStart: roundStartEvent,
+    roundEnd: roundEndEvent,
+    sizeChange: sizeChangeEvent,
+    ground: rect.bottom - 100, // Approximate ground level
+    leftBoundry: rect.left,
+    rightBoundry: rect.right,
     teamSwitchEvent
   }
 }

@@ -10,6 +10,7 @@ import {
 } from './keys.js'
 import { Game, WaitingGame } from './game.js'
 import { Event, events } from './events.js'
+import { createAddPlayerButton, createTeamHeaders } from './graphics.js'
 
 const area = document.querySelector('#main')
 let delayedActions = []
@@ -24,26 +25,23 @@ const balls = []
 const walls = []
 
 const onDelayedActions = (action) => {
-  console.log('added delayed action')
   delayedActions.push(action)
 }
 delayedActionsEvent.subscribe(onDelayedActions)
+
 const onAnimationAdd = (animation) => {
-  console.log('adding anim')
   animations.push(animation)
 }
 animationEvent.subscribe(onAnimationAdd)
 
 const players = []
+let playersArea = null
 
 const startEventListeners = () => {
   document.addEventListener('keyup', handleKeyUp)
   document.addEventListener('keydown', handleKeyDown)
 }
 
-const removeEventListener = (k) => {
-  k.forEach.map((e) => e)
-}
 const addPlayerListen = ({ code }) => {
   if (code === 'KeyB') {
     addPlayer()
@@ -51,88 +49,97 @@ const addPlayerListen = ({ code }) => {
 }
 
 const addPlayer = () => {
+  const playerIndex = players.length
+
+  // Get the next available player keys
+  const playerKeySet = playerKeys[playerIndex] || playerKeys[0] // Fallback to first key set if we run out
+
+  // Setup player keys and event handlers
+  const keyHandlers = setupKeys(playerKeySet)
+
+  // Create player object
   players.push({
-    team: 1,
-    keys: setupKeys(playerKeys[players.length]),
-    appearance: { color: 'gold' },
+    team: 0, // Start with no team selected
+    keys: keyHandlers,
+    appearance: { color: '#888888' }, // Default color until team is selected
     dimensions: { radius: 1 },
   })
 
-  const player = players[players.length - 1]
-  addPlayerBox()
+  // Create the waiting game container
   const waitingGame = WaitingGame(
     players.length,
-    1,
-    playerKeys[players.length - 1]
+    0, // No team initially
+    playerKeySet
   )
+
+  // Define the constraints for the slime
   const constraints = {
     rightBoundry: waitingGame.rightBoundry,
     leftBoundry: waitingGame.leftBoundry,
     ground: waitingGame.ground,
   }
+
+  // Create the slime instance
   slimes.push(
     Slime(
-      1,
+      0, // No team initially
       players.length,
       {
         x: (waitingGame.rightBoundry - waitingGame.leftBoundry) / 2,
         y: waitingGame.ground - 50,
       },
-      player.appearance,
-      player.dimensions,
+      players[playerIndex].appearance,
+      players[playerIndex].dimensions,
       constraints,
       waitingGame,
-      player.keys
+      keyHandlers
     )
   )
-}
 
-const removePlayer = (index) => {
-  // players.push(Slime())
-}
+  // Subscribe to team switch event to update player team
+  waitingGame.teamSwitchEvent.subscribe((team) => {
+    players[playerIndex].team = team
 
-const addPlayerBox = () => {
-  const box = document.createElement('div')
-  box.classList.add('playerPreview')
-  area.appendChild(box)
+    // Update appearance based on team selection
+    if (team === 1) {
+      players[playerIndex].appearance.color = 'gold'
+    } else if (team === 2) {
+      players[playerIndex].appearance.color = 'crimson'
+    }
+  })
 }
-const removePlayerBox = () => { }
 
 const initStartScreen = () => {
   document.addEventListener('keydown', addPlayerListen)
   startEventListeners()
   initKeys()
 
-  if (!players.length) {
-    addPlayer()
-  } else {
-    slimes = players.map((player, index) => {
-      addPlayerBox()
-      const waitingGame = WaitingGame(index + 1, 1, playerKeys[index])
-      const constraints = {
-        rightBoundry: waitingGame.rightBoundry,
-        leftBoundry: waitingGame.leftBoundry,
-        ground: waitingGame.ground,
-      }
-      return Slime(
-        player.team,
-        index,
-        {
-          x: (waitingGame.rightBoundry - waitingGame.leftBoundry) / 2,
-          y: waitingGame.ground - 50,
-        },
-        player.appearance,
-        player.dimensions,
-        constraints,
-        waitingGame,
-        player.keys
-      )
-    })
+  // Clear the main area
+  while (area.firstChild) {
+    area.removeChild(area.firstChild)
   }
 
+  // Add team headers
+  const teamHeaders = createTeamHeaders()
+  area.appendChild(teamHeaders)
+
+  // Create players area
+  playersArea = document.createElement('div')
+  playersArea.classList.add('playersArea')
+  area.appendChild(playersArea)
+
+  // Add "Add Player" button
+  const addPlayerBtn = createAddPlayerButton(addPlayer)
+  area.appendChild(addPlayerBtn)
+
+  // Add the first player
+  if (players.length === 0) {
+    addPlayer()
+  }
 }
 
 function gameLoop() {
+  // Process delayed actions
   delayedActions = delayedActions.filter((action) => {
     action.delay--
     if (action.delay === 0) {
@@ -141,17 +148,24 @@ function gameLoop() {
     return action.delay > 0
   })
 
+  // Process animations
   animations = animations.filter((animation) => {
     animation.next()
     return !animation.ended()
   })
 
+  // Update slimes
   slimes.forEach((slime) => slime.update())
 
+  // Render slimes
   slimes.forEach((slime) => slime.render())
 
+  // Continue game loop
   window.requestAnimationFrame(gameLoop)
 }
 
+// Initialize the start screen
 initStartScreen()
+
+// Start the game loop
 window.requestAnimationFrame(gameLoop)
