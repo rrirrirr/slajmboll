@@ -11,18 +11,19 @@ const cleanKey = (key) => {
   return key.replace(/Digit|Arrow|Key/, '')
 }
 
-const waitingScreen = (num, team, keys) => {
-  const teamSwitchEvent = Event('team switch')
+const waitingScreen = (num, team = 0, keys, playerIndex) => {
+  const teamSwitchEvent = Event(`team_switch_player${playerIndex}`);
 
   // Main player container
-  const container = document.createElement('div')
-  container.classList.add('playerContainer')
+  const container = document.createElement('div');
+  container.classList.add('playerContainer');
+  container.dataset.playerIndex = playerIndex; // Add data attribute for identification
 
   // Player name
-  const playerLabel = document.createElement('div')
-  playerLabel.classList.add('playerLabel')
-  playerLabel.textContent = `P${num}`
-  container.appendChild(playerLabel)
+  const playerLabel = document.createElement('div');
+  playerLabel.classList.add('playerLabel');
+  playerLabel.textContent = `P${num}`;
+  container.appendChild(playerLabel);
 
   // Controls with team arrows
   const controlsContainer = document.createElement('div')
@@ -105,22 +106,21 @@ const waitingScreen = (num, team, keys) => {
     playerLabel.classList.add('teamTwoText')
   }
 
-  // Team switching function
   const teamSwitch = (newTeam) => {
     if (newTeam === 1) {
-      container.classList.add('teamOne')
-      container.classList.remove('teamTwo')
-      playerLabel.classList.add('teamOneText')
-      playerLabel.classList.remove('teamTwoText')
-      teamSwitchEvent.emit(1)
+      container.classList.add('teamOne');
+      container.classList.remove('teamTwo');
+      playerLabel.classList.add('teamOneText');
+      playerLabel.classList.remove('teamTwoText');
+      teamSwitchEvent.emit(1);
     } else if (newTeam === 2) {
-      container.classList.add('teamTwo')
-      container.classList.remove('teamOne')
-      playerLabel.classList.add('teamTwoText')
-      playerLabel.classList.remove('teamOneText')
-      teamSwitchEvent.emit(2)
+      container.classList.add('teamTwo');
+      container.classList.remove('teamOne');
+      playerLabel.classList.add('teamTwoText');
+      playerLabel.classList.remove('teamOneText');
+      teamSwitchEvent.emit(2);
     }
-  }
+  };
 
   // Add click handlers
   teamLeftSelector.addEventListener('click', () => teamSwitch(1))

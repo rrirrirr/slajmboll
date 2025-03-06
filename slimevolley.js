@@ -49,13 +49,13 @@ const addPlayerListen = ({ code }) => {
 }
 
 const addPlayer = () => {
-  const playerIndex = players.length
+  const playerIndex = players.length;
 
   // Get the next available player keys
-  const playerKeySet = playerKeys[playerIndex] || playerKeys[0] // Fallback to first key set if we run out
+  const playerKeySet = playerKeys[playerIndex] || playerKeys[0]; // Fallback to first key set if we run out
 
-  // Setup player keys and event handlers
-  const keyHandlers = setupKeys(playerKeySet)
+  // Setup player keys and event handlers with player index
+  const keyHandlers = setupKeys(playerKeySet, playerIndex);
 
   // Create player object
   players.push({
@@ -63,50 +63,59 @@ const addPlayer = () => {
     keys: keyHandlers,
     appearance: { color: '#888888' }, // Default color until team is selected
     dimensions: { radius: 1 },
-  })
+    playerIndex
+  });
 
   // Create the waiting game container
   const waitingGame = WaitingGame(
     players.length,
     0, // No team initially
-    playerKeySet
-  )
+    playerKeySet,
+    playerIndex // Pass player index
+  );
+
+  // Calculate center position
+  const centerX = (waitingGame.rightBoundry + waitingGame.leftBoundry) / 2;
 
   // Define the constraints for the slime
   const constraints = {
     rightBoundry: waitingGame.rightBoundry,
     leftBoundry: waitingGame.leftBoundry,
     ground: waitingGame.ground,
-  }
+    maxVelocity: 10 // Adding missing maxVelocity parameter
+  };
 
-  // Create the slime instance
-  slimes.push(
-    Slime(
-      0, // No team initially
-      players.length,
-      {
-        x: (waitingGame.rightBoundry - waitingGame.leftBoundry) / 2,
-        y: waitingGame.ground - 50,
-      },
-      players[playerIndex].appearance,
-      players[playerIndex].dimensions,
-      constraints,
-      waitingGame,
-      keyHandlers
-    )
-  )
+  // Create the slime instance with proper positioning and player index
+  const newSlime = Slime(
+    0, // No team initially
+    playerIndex, // Use player index for identification
+    {
+      x: centerX,
+      y: waitingGame.ground
+    },
+    { color: '#888888' }, // Default appearance
+    { radius: 1 },  // Default dimensions
+    constraints,
+    waitingGame,
+    keyHandlers
+  );
+
+  slimes.push(newSlime);
 
   // Subscribe to team switch event to update player team
   waitingGame.teamSwitchEvent.subscribe((team) => {
-    players[playerIndex].team = team
+    // Only update the specific player
+    players[playerIndex].team = team;
 
     // Update appearance based on team selection
     if (team === 1) {
-      players[playerIndex].appearance.color = 'gold'
+      players[playerIndex].appearance.color = 'gold';
     } else if (team === 2) {
-      players[playerIndex].appearance.color = 'crimson'
+      players[playerIndex].appearance.color = 'crimson';
     }
-  })
+  });
+
+  console.log(`Added player ${playerIndex}, total slimes: ${slimes.length}`);
 }
 
 const initStartScreen = () => {

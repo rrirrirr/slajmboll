@@ -48,6 +48,8 @@ body {
   align-items: center;
   padding: 20px;
   flex-grow: 1;
+  position: relative;
+  min-height: 400px;
 }
 
 /* Player container */
@@ -59,6 +61,7 @@ body {
   position: relative;
   width: 100%;
   justify-content: center;
+  height: 150px; 
 }
 
 /* Player name */
@@ -138,7 +141,6 @@ body {
   margin: 0 5px;
 }
 
-/* Team assignments */
 .teamOne {
   transform: translateX(-250px);
 }
@@ -147,7 +149,6 @@ body {
   transform: translateX(250px);
 }
 
-/* Add player button */
 .addPlayerButton {
   color: #0c0;
   font-size: 18px;
@@ -160,14 +161,15 @@ body {
   transform: translateX(-50%);
 }
 
-/* Game elements */
 .slime {
   position: absolute;
-  width: 100px;
-  height: 50px;
-  border-top-left-radius: 110px;
-  border-top-right-radius: 110px;
+  width: 70px;  
+  height: 35px; 
+  border-top-left-radius: 70px; 
+  border-top-right-radius: 70px;
   border-bottom: 0;
+  z-index: 10;
+  transition: background-color 0.3s ease;
 }
 
 .teamColorOne {

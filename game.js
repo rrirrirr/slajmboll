@@ -115,47 +115,42 @@ function Game() {
   return { init, newRound, endRound, addGraphic }
 }
 
-function WaitingGame(num, team = 0, keys) {
-  // Store reference to the main container and players area
-  const main = document.querySelector('#main')
-  const playersArea = document.querySelector('.playersArea')
+function WaitingGame(num, team = 0, keys, playerIndex) {
+  // Store reference to the main container
+  const main = document.querySelector('#main');
+  const playersArea = document.querySelector('.playersArea') || main;
 
-  // Create events
-  const sizeChangeEvent = Event('sizeChange')
-  const gameStartEvent = Event('game start')
-  const gameEndEvent = Event('game end')
-  const roundStartEvent = Event('round start')
-  const roundEndEvent = Event('round end')
+  // Create events with player-specific names
+  const sizeChangeEvent = Event(`sizeChange_player${playerIndex}`);
+  const gameStartEvent = Event(`game_start_player${playerIndex}`);
+  const gameEndEvent = Event(`game_end_player${playerIndex}`);
+  const roundStartEvent = Event(`round_start_player${playerIndex}`);
+  const roundEndEvent = Event(`round_end_player${playerIndex}`);
 
   // Create the waiting screen UI
-  const { screen, teamSwitchEvent } = waitingScreen(num, team, keys)
+  const { screen, teamSwitchEvent } = waitingScreen(num, team, keys, playerIndex);
 
   // Add to players area
-  if (playersArea) {
-    playersArea.appendChild(screen)
-  } else {
-    main.appendChild(screen)
-  }
+  playersArea.appendChild(screen);
 
   // Get dimensions based on main container
-  const rect = main.getBoundingClientRect()
+  const rect = main.getBoundingClientRect();
 
-  // Emit game added event to trigger resize for all games
-  gameAddEvent.emit()
-
-  // Return the game controller with its events
+  // Return the game controller with its events and dimensions
   return {
-    screen, // The created element
+    go: main, // Use main as the container for slimes
+    screen,
     gameStart: gameStartEvent,
     gameEnd: gameEndEvent,
     roundStart: roundStartEvent,
     roundEnd: roundEndEvent,
     sizeChange: sizeChangeEvent,
-    ground: rect.bottom - 100, // Approximate ground level
-    leftBoundry: rect.left,
-    rightBoundry: rect.right,
-    teamSwitchEvent
-  }
+    ground: rect.height - 50, // Set ground level relative to container height
+    leftBoundry: 0,
+    rightBoundry: rect.width,
+    teamSwitchEvent,
+    playerIndex // Include player index for identification
+  };
 }
 
 export { Game, WaitingGame }
