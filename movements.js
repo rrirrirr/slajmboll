@@ -13,18 +13,27 @@ function Movement(move) {
 }
 
 export const startJump = (acceleration, killSignal, end) => {
+  let frameCount = 0;
+  const maxFrames = 35;
+  const minFrames = 10;
+
   const fm = frameMovement(
-    35,
+    maxFrames,
     (frame) => {
-      return -acceleration * ((frame ** 2) / 50)
+      frameCount++;
+      const power = frameCount < minFrames ? 1.0 : 0.8;
+      return -acceleration * ((frame ** 2) / 50) * power;
     },
-    killSignal,
+    () => {
+      return killSignal() && frameCount >= minFrames;
+    },
     end
-  )
+  );
+
   return Movement(() => {
-    return { x: 0, y: fm.next().value }
-  })
-}
+    return { x: 0, y: fm.next().value };
+  });
+};
 
 export const startWallJump = (
   acceleration,
