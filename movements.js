@@ -15,7 +15,7 @@ function Movement(move) {
 export const startJump = (acceleration, killSignal, end) => {
   let frameCount = 0;
   const maxFrames = 35;
-  const minFrames = 10;
+  const minFrames = 5;
 
   const fm = frameMovement(
     maxFrames,
