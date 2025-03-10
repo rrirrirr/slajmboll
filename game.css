@@ -19,7 +19,6 @@ body {
   flex-direction: column;
 }
 
-/* Team headers at the top */
 .teamHeadersContainer {
   display: flex;
   justify-content: space-between;
@@ -41,7 +40,6 @@ body {
   color: crimson;
 }
 
-/* Players area */
 .playersArea {
   display: flex;
   flex-direction: column;
@@ -52,7 +50,6 @@ body {
   min-height: 400px;
 }
 
-/* Player container */
 .playerContainer {
   display: flex;
   align-items: center;
@@ -64,7 +61,6 @@ body {
   height: 150px; 
 }
 
-/* Player name */
 .playerLabel {
   color: #0c0;
   font-weight: bold;
@@ -82,7 +78,6 @@ body {
   color: crimson;
 }
 
-/* Controls container */
 .controlsContainer {
   display: flex;
   align-items: center;
@@ -180,7 +175,6 @@ body {
   background-color: crimson !important;
 }
 
-/* Ball */
 .ball {
   position: absolute;
   width: 40px;
@@ -189,7 +183,6 @@ body {
   background-color: rebeccapurple;
 }
 
-/* Wall */
 #wall {
   position: absolute;
   bottom: 0;
@@ -269,4 +262,187 @@ body {
   font-size: 12px;
   pointer-events: none;
   z-index: 100;
+}
+
+.startButton {
+  display: none; /* Hidden by default */
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 15px 30px;
+  background-color: #22cc22;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  animation: pulse 2s infinite;
+  z-index: 100;
+}
+
+.startButton:hover {
+  background-color: #33dd33;
+  transform: translateX(-50%) scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.startButton:active {
+  background-color: #11bb11;
+  transform: translateX(-50%) scale(0.98);
+}
+
+/* Game Field Elements */
+#gameField {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: #d0e8ff;
+  overflow: hidden;
+}
+
+/* Score Board */
+.scoreBoard {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 10px 20px;
+  z-index: 100;
+}
+
+.teamScore {
+  font-size: 36px;
+  font-weight: bold;
+  padding: 0 10px;
+}
+
+.teamOneScore {
+  color: gold;
+}
+
+.teamTwoScore {
+  color: crimson;
+}
+
+.scoreSeparator {
+  font-size: 36px;
+  font-weight: bold;
+  color: #444;
+  margin: 0 10px;
+}
+
+/* Countdown */
+.countdownContainer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 200px;
+  height: 200px;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  z-index: 200;
+}
+
+.countdownText {
+  font-size: 100px;
+  font-weight: bold;
+  color: white;
+}
+
+/* Game Over Screen */
+.gameOverScreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 300;
+}
+
+.gameOverText {
+  font-size: 48px;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.playAgainButton {
+  padding: 15px 30px;
+  background-color: #22cc22;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.playAgainButton:hover {
+  background-color: #33dd33;
+  transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.playAgainButton:active {
+  background-color: #11bb11;
+  transform: scale(0.98);
+}
+
+/* Center Wall/Net */
+#wall {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 120px;
+  background-color: #0066cc;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  z-index: 40;
+}
+
+/* Ball */
+.ball {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rebeccapurple;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+}
+
+/* Pulsing animation for the start button */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 204, 34, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(34, 204, 34, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 204, 34, 0);
+  }
 }
