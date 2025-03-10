@@ -21,9 +21,9 @@ export default function Actor(
   let _ground = ground;
   let _maxVelocity = (_areaWidth / K) * 0.1;
   let _wallIshugged = false;
-  const _deacceleration = (_areaWidth / K) * 0.006;
-  const _jumpAcceleration = 0.5;
-  const _downwardAcceleration = 0.5;
+  const _deacceleration = (_areaWidth / K) * 0.008;
+  const _jumpAcceleration = 0.6;
+  const _downwardAcceleration = 0.9;
 
   let _movements = [];
 
@@ -35,13 +35,23 @@ export default function Actor(
   };
 
   const addMovement = (movement) => {
-    _movements.push(movement);
+    if (movement && typeof movement.next === 'function') {
+      _movements.push(movement);
+    }
+  };
+
+  const removeMovement = (movement) => {
+    if (movement) {
+      const index = _movements.indexOf(movement);
+      if (index !== -1) {
+        _movements.splice(index, 1);
+      }
+    }
   };
 
   const updateMovements = () => {
     _movements = _movements.filter((movement) => {
       if (!movement || typeof movement.next !== 'function') {
-        console.error('Invalid movement', movement);
         return false;
       }
 
@@ -49,58 +59,84 @@ export default function Actor(
         const update = movement.next();
 
         if (update) {
-          if (update.x !== undefined) _velocity.x += update.x;
-          if (update.y !== undefined) _velocity.y += update.y;
+          if (update.x !== undefined && !isNaN(update.x)) {
+            _velocity.x += update.x;
+          }
+          if (update.y !== undefined && !isNaN(update.y)) {
+            _velocity.y += update.y;
+          }
         }
 
-        return movement.ended ? !movement.ended() : false;
+        // Keep movement if it hasn't ended
+        return movement.ended ? !movement.ended() : true;
       } catch (error) {
-        console.error('Error in movement update:', error);
         return false;
       }
     });
   };
 
   const updateVelocity = () => {
+    // Apply deceleration (drag)
     _velocity.x += _deacceleration * -Math.sign(_velocity.x);
 
+    // Cap horizontal velocity
     if (Math.abs(_velocity.x) > _maxVelocity) {
       _velocity.x = Math.sign(_velocity.x) * _maxVelocity;
     }
 
+    // Stop completely if velocity is very small
     if (Math.abs(_deacceleration) > Math.abs(_velocity.x)) {
       _velocity.x = 0;
     }
 
+    // Apply gravity
     _velocity.y += _downwardAcceleration;
-    if (-_velocity.y > _maxVelocity) _velocity.y = -_maxVelocity;
-    if (_velocity.y > TERMINALVELOCITY) _velocity.y = TERMINALVELOCITY;
+
+    // Cap vertical velocity
+    if (-_velocity.y > _maxVelocity) {
+      _velocity.y = -_maxVelocity;
+    }
+    if (_velocity.y > TERMINALVELOCITY) {
+      _velocity.y = TERMINALVELOCITY;
+    }
   };
 
   const updatePosition = () => {
+    // Calculate next position
     let nextPos = { x: _pos.x + _velocity.x, y: _pos.y + _velocity.y };
+    let wasGrounded = _pos.y >= _ground;
 
+    // Check ground collision
     if (nextPos.y > _ground) {
       nextPos.y = _ground;
       _velocity.y = 0;
-      groundHitEvent.emit();
+      if (!wasGrounded) {
+        // Only emit if we just landed
+        groundHitEvent.emit();
+      }
     }
 
+    // Check left wall collision
     if (nextPos.x - _realRadius < _leftBoundry) {
       nextPos.x = _leftBoundry + _realRadius;
       _velocity.x = 0;
       wallHitEvent.emit(-1);
       _wallIshugged = true;
-    } else if (nextPos.x + _realRadius > _rightBoundry) {
+    }
+    // Check right wall collision
+    else if (nextPos.x + _realRadius > _rightBoundry) {
       nextPos.x = _rightBoundry - _realRadius;
       _velocity.x = 0;
       wallHitEvent.emit(1);
       _wallIshugged = true;
-    } else if (_wallIshugged) {
+    }
+    // No longer touching a wall
+    else if (_wallIshugged) {
       _wallIshugged = false;
       wallHitEvent.emit(0);
     }
 
+    // Update position
     _pos.x = nextPos.x;
     _pos.y = nextPos.y;
   };
@@ -121,6 +157,7 @@ export default function Actor(
 
   return {
     addMovement,
+    removeMovement,
     update,
     groundHitEvent,
     wallHitEvent,
