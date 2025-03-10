@@ -1,14 +1,11 @@
 import { Event } from './events.js'
+import { changeKeyPrompt, cleanKey } from './keys.js'
 
 const createSlime = ({ color }) => {
   const slime = document.createElement('div')
   slime.classList.add('slime')
   slime.style.backgroundColor = color
   return slime
-}
-
-const cleanKey = (key) => {
-  return key.replace(/Digit|Arrow|Key/, '')
 }
 
 const waitingScreen = (num, team = 0, keys, playerIndex) => {
@@ -54,6 +51,11 @@ const waitingScreen = (num, team = 0, keys, playerIndex) => {
   const up = document.createElement('button')
   up.textContent = cleanKey(keys.up)
   up.classList.add('keyButton')
+  // Add click handler for key binding
+  up.addEventListener('click', (e) => {
+    e.stopPropagation();
+    changeKeyPrompt(`p${num}up`, up);
+  });
 
   // Empty slot for alignment
   const emptyRight = document.createElement('div')
@@ -70,14 +72,29 @@ const waitingScreen = (num, team = 0, keys, playerIndex) => {
   const left = document.createElement('button')
   left.textContent = cleanKey(keys.left)
   left.classList.add('keyButton')
+  // Add click handler for key binding
+  left.addEventListener('click', (e) => {
+    e.stopPropagation();
+    changeKeyPrompt(`p${num}left`, left);
+  });
 
   const down = document.createElement('button')
   down.textContent = cleanKey(keys.down)
   down.classList.add('keyButton')
+  // Add click handler for key binding
+  down.addEventListener('click', (e) => {
+    e.stopPropagation();
+    changeKeyPrompt(`p${num}down`, down);
+  });
 
   const right = document.createElement('button')
   right.textContent = cleanKey(keys.right)
   right.classList.add('keyButton')
+  // Add click handler for key binding
+  right.addEventListener('click', (e) => {
+    e.stopPropagation();
+    changeKeyPrompt(`p${num}right`, right);
+  });
 
   buttonLineTwo.appendChild(left)
   buttonLineTwo.appendChild(down)
