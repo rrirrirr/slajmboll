@@ -1,8 +1,5 @@
-// slimevolley.js
-// Main game file with start button implementation
-
-// Remake of slime volleyball https://oneslime.net
 import { Slime } from './slime.js';
+import { Ball } from './ball.js';
 import { GRAVITY } from './constants.js';
 import {
   playerKeys,
@@ -17,7 +14,8 @@ import {
   createAddPlayerButton,
   createTeamHeaders,
   createWall,
-  createBall
+  createBall,
+  createScoreBoard
 } from './graphics.js';
 
 // Import game state management
@@ -38,6 +36,7 @@ import {
   updateStartButtonVisibility
 } from './startButton.js';
 
+// Initialize global variables
 const area = document.querySelector('#main');
 let delayedActions = [];
 let animations = [];
@@ -45,30 +44,32 @@ const delayedActionsEvent = Event('delayed actions');
 const animationEvent = Event('animations');
 
 const field = { width: 0, height: 0 };
-const units = [];
 let slimes = [];
-const balls = [];
-const walls = [];
+let ball = null;
+let gameInstance = null;
 
-const onDelayedActions = (action) => {
+// Subscribe to event handlers
+delayedActionsEvent.subscribe((action) => {
   delayedActions.push(action);
-};
-delayedActionsEvent.subscribe(onDelayedActions);
+});
 
-const onAnimationAdd = (animation) => {
+animationEvent.subscribe((animation) => {
   animations.push(animation);
-};
-animationEvent.subscribe(onAnimationAdd);
+});
 
+// Array to hold player data
 const players = [];
 let playersArea = null;
 let startButton = null;
+let scoreBoard = null;
 
+// Set up event listeners
 const startEventListeners = () => {
   document.addEventListener('keyup', handleKeyUp);
   document.addEventListener('keydown', handleKeyDown);
 };
 
+// Listen for "B" key to add players during setup
 const addPlayerListen = ({ code }) => {
   if (code === 'KeyB') {
     addPlayerToGame();
@@ -77,6 +78,9 @@ const addPlayerListen = ({ code }) => {
 
 // Function to add a player to the game
 const addPlayerToGame = () => {
+  // Limit to 4 players total (2 per team)
+  if (players.length >= 4) return;
+
   const playerIndex = players.length;
 
   // Get the next available player keys
@@ -147,6 +151,9 @@ const addPlayerToGame = () => {
     } else if (team === 2) {
       players[playerIndex].appearance.color = 'crimson';
     }
+
+    // Update player team in game state
+    updatePlayerTeam(playerIndex, team);
   });
 
   console.log(`Added player ${playerIndex}, total slimes: ${slimes.length}`);
@@ -191,72 +198,71 @@ const initGame = () => {
   field.width = rect.width;
   field.height = rect.height;
 
+  // Create score board
+  const scoreBoardElements = createScoreBoard();
+  scoreBoard = scoreBoardElements.container;
+  area.appendChild(scoreBoard);
+
   // Create center wall/net
   const wall = createWall();
   area.appendChild(wall);
 
-  // Create ball
-  const ball = createBall();
-  area.appendChild(ball);
+  // Create ball DOM element
+  const ballElement = createBall();
+  area.appendChild(ballElement);
 
-  // Position ball in center
-  ball.style.left = `${field.width / 2 - 20}px`; // Ball width is 40px
-  ball.style.top = `${field.height / 3 - 20}px`; // Ball height is 40px
+  // Create ball physics object
+  const ballDimensions = { radius: 0.5 }; // Half the size of a slime
+  const ballConstraints = {
+    rightBoundry: field.width,
+    leftBoundry: 0,
+    ground: field.height - 40, // 40px from bottom
+    maxVelocity: 15
+  };
 
-  // Position slimes based on their team
-  positionSlimesForGame();
+  // Initialize ball at center
+  ball = Ball(
+    { x: field.width / 2, y: field.height / 3 },
+    ballDimensions,
+    ballConstraints,
+    field,
+    animationEvent
+  );
 
-  // Setup game logic
-  const gameInstance = Game();
+  // Set the ball's DOM element
+  ball.setElement(ballElement);
 
-  // Get players who have chosen a team
-  const activePlayers = players.filter(player => player.team > 0);
+  // Subscribe to ball events
+  ball.scoredEvent.subscribe(handleScore);
+  ball.hitSlimeEvent.subscribe(handleBallSlimeCollision);
 
-  // Initialize game with active players
-  gameInstance.init(activePlayers);
+  // Create game instance
+  gameInstance = Game();
 
-  // Start the first round
-  gameInstance.newRound(1); // Start with team 1 serving
+  // Initialize with game elements
+  gameInstance.init(players, field, slimes, ball);
+
+  // Start with random team serving
+  const servingTeam = Math.random() < 0.5 ? 1 : 2;
+  gameInstance.newRound(servingTeam);
 };
 
-// Position slimes based on their team assignments
-const positionSlimesForGame = () => {
-  slimes.forEach(slime => {
-    // Find player data for this slime
-    const playerData = players[slime.teamNumber];
-    if (!playerData) return;
+// Handle ball-slime collisions
+const handleBallSlimeCollision = (data) => {
+  console.log(`Ball hit slime ${data.slimeId} on team ${data.teamNumber}`);
 
-    // Get DOM element
-    const slimeElement = document.querySelector(`.slime-${slime.teamNumber}`);
-    if (!slimeElement) return;
+  // You can add additional effects or logic here
+  // For example, play a sound, add a visual effect, etc.
+};
 
-    // Position based on team
-    if (playerData.team === 1) {
-      // Team Gold (left side)
-      const leftPosition = field.width * 0.25;
-      const topPosition = field.height - 40; // 40px from bottom
+// Handle scoring
+const handleScore = (data) => {
+  console.log(`Team ${data.scoringSide} scored!`);
 
-      slimeElement.style.left = `${leftPosition - 35}px`; // 35px is half of slime width
-      slimeElement.style.top = `${topPosition - 35}px`;   // 35px is slime height
-
-      // Update appearance
-      slimeElement.style.backgroundColor = 'gold';
-      slimeElement.classList.add('teamColorOne');
-      slimeElement.classList.remove('teamColorTwo');
-    } else if (playerData.team === 2) {
-      // Team Crimson (right side)
-      const leftPosition = field.width * 0.75;
-      const topPosition = field.height - 40; // 40px from bottom
-
-      slimeElement.style.left = `${leftPosition - 35}px`; // 35px is half of slime width
-      slimeElement.style.top = `${topPosition - 35}px`;   // 35px is slime height
-
-      // Update appearance
-      slimeElement.style.backgroundColor = 'crimson';
-      slimeElement.classList.add('teamColorTwo');
-      slimeElement.classList.remove('teamColorOne');
-    }
-  });
+  // End the round in the game with the scoring team
+  if (gameInstance) {
+    gameInstance.endRound(data.scoringSide);
+  }
 };
 
 // Initialize the start screen
@@ -315,12 +321,29 @@ function update() {
 
   // Update slimes
   slimes.forEach((slime) => slime.update());
+
+  // Update ball if game is playing
+  if (gameState.isPlaying && ball) {
+    ball.update();
+
+    // Check ball collisions with all slimes
+    slimes.forEach(slime => {
+      if (slime.team > 0) { // Only check active slimes
+        ball.checkSlimeCollision(slime);
+      }
+    });
+  }
 }
 
 // Render function for the game loop
 function render() {
   // Render slimes
   slimes.forEach((slime) => slime.render());
+
+  // Render ball if game is playing
+  if (gameState.isPlaying && ball) {
+    ball.render();
+  }
 }
 
 // Game loop

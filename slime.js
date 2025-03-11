@@ -79,7 +79,7 @@ export function Slime(
   let _lastDirectionChangeTime = 0
   const _directionChangeWindow = 15 // Frames window to perform jump after direction change
 
-  // Create actor with unique id
+  // Create actor with unique id, passing team information
   let ao = Actor(
     pos,
     { x: 0, y: 0 },
@@ -88,7 +88,8 @@ export function Slime(
     constraints.leftBoundry,
     constraints.ground,
     constraints.maxVelocity,
-    game.sizeChange
+    game.sizeChange,
+    _team // Pass team to Actor
   )
 
   // Create DOM element with unique identifier
@@ -372,8 +373,29 @@ export function Slime(
       go.classList.remove('teamColorOne')
       _appearance.color = 'crimson'
     }
+
+    // Update Actor's team boundary constraints
+    if (ao && typeof ao.updateTeam === 'function') {
+      ao.updateTeam(_team);
+    }
   }
   _onTeamSwitch(team)
+
+  const _onNetHit = (direction) => {
+    console.log(`Net hit for slime ${teamNumber}, direction: ${direction}`);
+    // Handle net collisions
+    if (direction !== 0) {
+      _isHuggingWall = direction;
+    } else {
+      _delayedActions.emit({
+        slimeId: slimeId,
+        delay: 10,
+        execute: () => {
+          _isHuggingWall = 0;
+        },
+      });
+    }
+  }
 
   const filterDelayedActions = (action) => {
     if (!action.slimeId || action.slimeId === slimeId) {
@@ -411,7 +433,9 @@ export function Slime(
 
     ao.groundHitEvent.subscribe(_onGroundHit),
     ao.wallHitEvent.subscribe(_onWallHit),
-  ]
+    ao.netHitEvent?.subscribe(_onNetHit), // Only subscribe if the event exists
+  ].filter(Boolean); // Filter out any undefined listeners (if netHitEvent doesn't exist)
+
 
   const destroy = () => {
     go.remove();
@@ -445,6 +469,8 @@ export function Slime(
     render,
     destroy,
     slimeId,
-    teamNumber
+    teamNumber,
+    team: _team,
+    ao
   }
 }
