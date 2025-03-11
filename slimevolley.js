@@ -10,6 +10,7 @@ import {
 } from './keys.js';
 import { Game, WaitingGame } from './game.js';
 import { Event, events } from './events.js';
+import Actor from './actor.js';
 import {
   createAddPlayerButton,
   createTeamHeaders,
@@ -30,6 +31,17 @@ import {
   resetGameState
 } from './gameState.js';
 
+import {
+  GAME_STATE,
+  currentGameState,
+  setGameState,
+  roundStartEvent,
+  roundEndEvent,
+  countdownStartEvent,
+  countdownEndEvent,
+  activeCountdown
+} from './gameStateManager.js';
+
 // Import start button functionality
 import {
   createAndAddStartButton,
@@ -47,6 +59,8 @@ const field = { width: 0, height: 0 };
 let slimes = [];
 let ball = null;
 let gameInstance = null;
+let lastScoringTime = 0;
+const SCORING_COOLDOWN = 2000; // 2 seconds cooldown between scoring events
 
 // Subscribe to event handlers
 delayedActionsEvent.subscribe((action) => {
@@ -207,34 +221,60 @@ const initGame = () => {
   const wall = createWall();
   area.appendChild(wall);
 
+  // Calculate ground position (where slimes stand)
+  const groundPosition = field.height - 40; // 40px from bottom
+
   // Create ball DOM element
   const ballElement = createBall();
   area.appendChild(ballElement);
+
+  // Set ball size
+  const ballSize = 40; // px
+  ballElement.style.width = `${ballSize}px`;
+  ballElement.style.height = `${ballSize}px`;
+
+  // Position ball in center initially for visual reference
+  ballElement.style.left = `${field.width / 2 - ballSize / 2}px`;
+  ballElement.style.top = `${field.height / 3 - ballSize / 2}px`;
 
   // Create ball physics object
   const ballDimensions = { radius: 0.5 }; // Half the size of a slime
   const ballConstraints = {
     rightBoundry: field.width,
     leftBoundry: 0,
-    ground: field.height - 40, // 40px from bottom
+    ground: groundPosition,
     maxVelocity: 15
   };
 
-  // Initialize ball at center
-  ball = Ball(
-    { x: field.width / 2, y: field.height / 3 },
-    ballDimensions,
-    ballConstraints,
-    field,
-    animationEvent
-  );
+  // Initialize ball at center position
+  const initialBallPosition = {
+    x: field.width / 2,
+    y: field.height / 3
+  };
 
-  // Set the ball's DOM element
-  ball.setElement(ballElement);
-
-  // Subscribe to ball events
-  ball.scoredEvent.subscribe(handleScore);
-  ball.hitSlimeEvent.subscribe(handleBallSlimeCollision);
+  // Create ball physics object
+  ball = {
+    element: ballElement,
+    ao: Actor(
+      initialBallPosition,
+      { x: 0, y: 0 },
+      ballDimensions.radius,
+      ballConstraints.rightBoundry,
+      ballConstraints.leftBoundry,
+      ballConstraints.ground,
+      ballConstraints.maxVelocity
+    ),
+    update: function() {
+      this.ao.update();
+      this.render();
+    },
+    render: function() {
+      const ballWidth = parseInt(this.element.style.width);
+      const ballHeight = parseInt(this.element.style.height);
+      this.element.style.left = `${this.ao.pos.x - ballWidth / 2}px`;
+      this.element.style.top = `${this.ao.pos.y - ballHeight / 2}px`;
+    }
+  };
 
   // Create game instance
   gameInstance = Game();
@@ -319,19 +359,40 @@ function update() {
     return !animation.ended();
   });
 
-  // Update slimes
+  // Update slimes regardless of state
   slimes.forEach((slime) => slime.update());
 
-  // Update ball if game is playing
-  if (gameState.isPlaying && ball) {
+  // Only update ball physics and check scoring during PLAYING state
+  if (currentGameState === GAME_STATE.PLAYING && ball && typeof ball.update === 'function') {
     ball.update();
 
-    // Check ball collisions with all slimes
-    slimes.forEach(slime => {
-      if (slime.team > 0) { // Only check active slimes
-        ball.checkSlimeCollision(slime);
+    // Check for scoring condition
+    if (
+      ball.ao &&
+      ball.ao.pos.y >= ball.ao.ground - 5 && // Ball is near ground
+      Math.abs(ball.ao._velocity.y) < 0.8 // Ball has low vertical velocity
+    ) {
+      // Determine which side the ball is on
+      const scoringSide = ball.ao.pos.x < field.width / 2 ? 2 : 1;
+
+      console.log(`Ball triggered scoring for team ${scoringSide}`);
+
+      // Change state to prevent multiple scoring events
+      setGameState(GAME_STATE.SCORING);
+
+      // Emit round end event with scoring team
+      roundEndEvent.emit(scoringSide);
+
+      // End the round with the scoring team
+      if (gameInstance) {
+        gameInstance.endRound(scoringSide);
       }
-    });
+    }
+  } else if (currentGameState === GAME_STATE.SCORING || currentGameState === GAME_STATE.COUNTDOWN) {
+    // Still render the ball position during non-playing states
+    if (ball && typeof ball.render === 'function') {
+      ball.render();
+    }
   }
 }
 

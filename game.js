@@ -1,6 +1,17 @@
-import { Event } from './events.js'
+import { Event, events } from './events.js';
 import { waitingScreen } from './graphics.js'
 import { GRAVITY } from './constants.js';
+import {
+  GAME_STATE,
+  currentGameState,
+  setGameState,
+  roundStartEvent,
+  roundEndEvent,
+  countdownStartEvent,
+  countdownEndEvent,
+  activeCountdown,
+  setActiveCountdown
+} from './gameStateManager.js';
 
 // Create a global event for game additions
 const gameAddEvent = Event('game added')
@@ -17,17 +28,16 @@ function Game() {
   // Initialize the game with players
   const init = (playerData, fieldDimensions, gameSlimes, gameBall) => {
     // Store references to game elements
-    players = playerData
-    slimes = gameSlimes
-    ball = gameBall
-    field = fieldDimensions
+    players = playerData;
+    slimes = gameSlimes;
+    ball = gameBall;
+    field = fieldDimensions;
 
     // Get scores from DOM if they exist
-    scores = document.querySelectorAll('.score')
+    scores = document.querySelectorAll('.score');
 
-    // Setup initial positions
-    positionSlimesForRound()
-  }
+    console.log("Game initialized with ball:", ball);
+  };
 
   // Position slimes at evenly spaced intervals on their respective sides
   const positionSlimesForRound = () => {
@@ -119,126 +129,302 @@ function Game() {
 
   // Reset the ball position for serving
   const resetBall = (ball, team) => {
-    const newPos = ballPosition(team)
+    if (!ball) return;
 
-    // Update DOM position
-    if (ball && ball.element) {
-      const ballWidth = parseInt(ball.element.style.width) || 40
-      const ballHeight = parseInt(ball.element.style.height) || 40
+    // Calculate position based on serving team
+    const position = team === 1
+      ? { x: field.width / 4, y: field.height / 3 }
+      : { x: (field.width * 3) / 4, y: field.height / 3 };
 
-      ball.element.style.left = `${newPos.x - ballWidth / 2}px`
-      ball.element.style.top = `${newPos.y - ballHeight / 2}px`
+    // Reset ball position in the physics system
+    if (ball.ao) {
+      ball.ao.pos.x = position.x;
+      ball.ao.pos.y = position.y;
+
+      // Reset velocity
+      ball.ao._velocity.x = 0;
+      ball.ao._velocity.y = 0;
     }
 
-    // Update physics position
-    if (ball && ball.ao && ball.ao.pos) {
-      ball.ao.pos.x = newPos.x
-      ball.ao.pos.y = newPos.y
+    // Reset position in DOM
+    if (ball.element) {
+      const ballWidth = parseInt(ball.element.style.width) || 40;
+      const ballHeight = parseInt(ball.element.style.height) || 40;
+
+      ball.element.style.left = `${position.x - ballWidth / 2}px`;
+      ball.element.style.top = `${position.y - ballHeight / 2}px`;
     }
-  }
+
+    // Force a render update
+    if (typeof ball.render === 'function') {
+      ball.render();
+    }
+  };
+
 
   // Stop ball physics (for serving)
   const stopBall = (ball) => {
-    if (ball && ball.ao) {
-      ball.ao._velocity.x = 0
-      ball.ao._velocity.y = 0
-      ball.ao._downwardAcceleration = 0
+    if (!ball || !ball.ao) {
+      console.error("Cannot stop ball - ball object is invalid");
+      return;
     }
-  }
+
+    console.log("Stopping ball physics");
+    ball.ao._velocity.x = 0;
+    ball.ao._velocity.y = 0;
+    ball.ao._downwardAcceleration = 0;
+  };
 
   // Apply gravity to the ball to start play
   const dropBall = (ball) => {
-    if (ball && ball.ao) {
-      ball.ao._downwardAcceleration = GRAVITY
+    // Only drop the ball if in right state
+    if (currentGameState !== GAME_STATE.PLAYING) {
+      console.log(`Not dropping ball - currently in ${currentGameState} state`);
+      return;
     }
-  }
+
+    if (!ball || !ball.ao) {
+      console.error("Cannot drop ball - ball object is invalid");
+      return;
+    }
+
+    console.log("Applying gravity to ball:", GRAVITY);
+    ball.ao._downwardAcceleration = GRAVITY;
+  };
 
   // Identify which team's side the ball is on
   const whichTeamHalf = (x) => (x > field.width / 2 ? 2 : 1)
 
   // Start a new round
   const newRound = (team) => {
+    // Only start a new round if not already scoring or in countdown
+    if (currentGameState === GAME_STATE.SCORING || currentGameState === GAME_STATE.COUNTDOWN) {
+      console.log(`Not starting new round - currently in ${currentGameState} state`);
+      return;
+    }
+
+    console.log(`Starting new round with team ${team} serving`);
+
+    // Reset game state
+    setGameState(GAME_STATE.SETUP);
+
     // Position all slimes at their starting positions
-    positionSlimesForRound()
+    positionSlimesForRound();
 
     // Reset and position the ball
-    resetBall(ball, team)
-    stopBall(ball)
+    resetBall(ball, team);
+    stopBall(ball);
 
-    // Show countdown
+    // Show countdown and drop ball after countdown
     showCountdown(() => {
-      // After countdown, start play
-      dropBall(ball)
-    })
-  }
+      console.log("Dropping ball after countdown");
+      dropBall(ball);
+    });
+  };
 
   // Show countdown before starting the round
   const showCountdown = (callback) => {
-    // Create or get countdown element
-    let countdown = document.querySelector('.countdownContainer')
-    let countText = document.querySelector('.countdownText')
-
-    if (!countdown) {
-      countdown = document.createElement('div')
-      countdown.classList.add('countdownContainer')
-
-      countText = document.createElement('div')
-      countText.classList.add('countdownText')
-
-      countdown.appendChild(countText)
-      go.appendChild(countdown)
+    // Only start countdown if one isn't already in progress
+    if (activeCountdown) {
+      console.log("Countdown already in progress, not starting another");
+      return;
     }
 
-    countdown.style.display = 'flex'
+    console.log("Showing countdown...");
+    countdownStartEvent.emit();
 
-    // Set up the countdown
-    let count = 3
-    countText.textContent = count
+    // Create or get countdown element
+    let countdown = document.querySelector('.countdownContainer');
+    let countText = document.querySelector('.countdownText');
 
-    const countInterval = setInterval(() => {
-      count--
-      if (count > 0) {
-        countText.textContent = count
-      } else {
-        countText.textContent = 'GO!'
+    if (!countdown) {
+      // Create countdown container
+      countdown = document.createElement('div');
+      countdown.classList.add('countdownContainer');
 
-        // Hide countdown and start play
-        setTimeout(() => {
-          countdown.style.display = 'none'
-          if (typeof callback === 'function') {
-            callback()
-          }
-        }, 500)
+      // Create text element for count
+      countText = document.createElement('div');
+      countText.classList.add('countdownText');
 
-        clearInterval(countInterval)
+      // Add text to container
+      countdown.appendChild(countText);
+
+      // Add container to game area
+      go.appendChild(countdown);
+
+      console.log("Created countdown elements");
+    }
+
+    // Ensure the countdown is visible and styled properly
+    countdown.style.display = 'flex';
+    countdown.style.position = 'absolute';
+    countdown.style.top = '50%';
+    countdown.style.left = '50%';
+    countdown.style.transform = 'translate(-50%, -50%)';
+    countdown.style.width = '150px';
+    countdown.style.height = '150px';
+    countdown.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    countdown.style.borderRadius = '50%';
+    countdown.style.display = 'flex';
+    countdown.style.justifyContent = 'center';
+    countdown.style.alignItems = 'center';
+    countdown.style.zIndex = '1000';
+
+    countText.style.fontSize = '80px';
+    countText.style.color = 'white';
+    countText.style.fontWeight = 'bold';
+
+    // Start count at 3
+    let count = 3;
+    countText.textContent = count;
+
+    // Track this countdown as the active one
+    setActiveCountdown(Date.now())
+    const thisCountdown = activeCountdown;
+
+    // Use a more reliable interval for countdown
+    const countdownInterval = setInterval(() => {
+      // Check if this countdown is still the active one
+      if (activeCountdown !== thisCountdown) {
+        clearInterval(countdownInterval);
+        return;
       }
-    }, 1000)
-  }
+
+      count--;
+
+      if (count > 0) {
+        countText.textContent = count;
+        console.log(`Countdown: ${count}`);
+      } else {
+        countText.textContent = 'GO!';
+        console.log('Countdown: GO!');
+
+        // Hide countdown and start play after a short delay
+        setTimeout(() => {
+          countdown.style.display = 'none';
+          console.log("Countdown complete, starting play");
+
+          // Signal that no countdown is active
+          setActiveCountdown(null);
+
+          // Emit countdown end event
+          countdownEndEvent.emit();
+
+          if (typeof callback === 'function') {
+            callback();
+          }
+        }, 500);
+
+        clearInterval(countdownInterval);
+      }
+    }, 1000);
+  };
 
   // End a round and update score
   const endRound = (team) => {
+    // Only process scoring if in PLAYING or SCORING state
+    if (currentGameState !== GAME_STATE.PLAYING && currentGameState !== GAME_STATE.SCORING) {
+      console.log(`Not ending round - currently in ${currentGameState} state`);
+      return;
+    }
+
+    console.log(`Team ${team} scored! Updating score.`);
+
+    // Ensure we're in scoring state
+    setGameState(GAME_STATE.SCORING);
+
     // Update score
-    points[team - 1]++
-    updateScoreDisplay()
+    points[team - 1]++;
+    updateScoreDisplay();
+
+    // Stop ball physics immediately to prevent further bounces
+    stopBall(ball);
 
     // Check for win
     if (checkForWin()) {
-      endGame(team)
+      setGameState(GAME_STATE.GAME_OVER);
+      endGame(team);
     } else {
       // Start new round with the losing team serving
-      const servingTeam = team === 1 ? 2 : 1
-      setTimeout(() => newRound(servingTeam), 1000)
+      const servingTeam = team === 1 ? 2 : 1;
+      console.log(`New round will start with team ${servingTeam} serving after delay`);
+
+      // Add a delay before starting new round to prevent rapid restarts
+      setTimeout(() => {
+        // Set state back to SETUP before starting new round
+        setGameState(GAME_STATE.SETUP);
+        newRound(servingTeam);
+      }, 2000); // Increased delay for better visibility
     }
-  }
+  };
 
   // Update score display
   const updateScoreDisplay = () => {
-    // If we have score elements, update them
-    if (scores && scores.length >= 2) {
-      scores[0].textContent = points[0]
-      scores[1].textContent = points[1]
+    console.log(`Updating score display: ${points[0]}-${points[1]}`);
+
+    // Check if score board exists, create if not
+    let scoreBoard = document.querySelector('.scoreBoard');
+    let team1Score = document.querySelector('.teamOneScore');
+    let team2Score = document.querySelector('.teamTwoScore');
+
+    if (!scoreBoard) {
+      console.log("Creating scoreboard elements");
+
+      // Create score board
+      scoreBoard = document.createElement('div');
+      scoreBoard.classList.add('scoreBoard');
+
+      // Style the score board
+      scoreBoard.style.position = 'absolute';
+      scoreBoard.style.top = '20px';
+      scoreBoard.style.left = '50%';
+      scoreBoard.style.transform = 'translateX(-50%)';
+      scoreBoard.style.backgroundColor = 'rgba(0, 0, 0, 0.2)';
+      scoreBoard.style.borderRadius = '10px';
+      scoreBoard.style.padding = '10px 20px';
+      scoreBoard.style.display = 'flex';
+      scoreBoard.style.alignItems = 'center';
+      scoreBoard.style.justifyContent = 'center';
+      scoreBoard.style.zIndex = '100';
+
+      // Create team 1 score element
+      team1Score = document.createElement('div');
+      team1Score.classList.add('teamScore', 'teamOneScore');
+      team1Score.style.color = 'gold';
+      team1Score.style.fontSize = '36px';
+      team1Score.style.fontWeight = 'bold';
+      team1Score.style.margin = '0 10px';
+
+      // Create separator
+      const separator = document.createElement('div');
+      separator.classList.add('scoreSeparator');
+      separator.textContent = '-';
+      separator.style.color = '#333';
+      separator.style.fontSize = '36px';
+      separator.style.fontWeight = 'bold';
+      separator.style.margin = '0 10px';
+
+      // Create team 2 score element
+      team2Score = document.createElement('div');
+      team2Score.classList.add('teamScore', 'teamTwoScore');
+      team2Score.style.color = 'crimson';
+      team2Score.style.fontSize = '36px';
+      team2Score.style.fontWeight = 'bold';
+      team2Score.style.margin = '0 10px';
+
+      // Add elements to score board
+      scoreBoard.appendChild(team1Score);
+      scoreBoard.appendChild(separator);
+      scoreBoard.appendChild(team2Score);
+
+      // Add score board to game area
+      go.appendChild(scoreBoard);
     }
-  }
+
+    // Update the scores
+    team1Score.textContent = points[0];
+    team2Score.textContent = points[1];
+  };
 
   // Check if a team has won
   const checkForWin = () => {
@@ -343,11 +529,11 @@ function WaitingGame(num, team = 0, keys, playerIndex) {
     roundStart: roundStartEvent,
     roundEnd: roundEndEvent,
     sizeChange: sizeChangeEvent,
-    ground: rect.height - 50, // Set ground level relative to container height
+    ground: rect.height - 50,
     leftBoundry: 0,
     rightBoundry: rect.width,
     teamSwitchEvent,
-    playerIndex // Include player index for identification
+    playerIndex
   };
 }
 
