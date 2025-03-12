@@ -8,8 +8,10 @@ import {
   roundEndEvent,
   countdownStartEvent,
   countdownEndEvent,
-  setActiveCountdown
+  setActiveCountdown,
+  gameState
 } from '../core/gameState.js';
+import { waitingScreen } from '../ui/graphics.js';
 
 /**
  * Creates a global event for game additions
@@ -657,7 +659,7 @@ function WaitingGame(playerNumber, team = 0, keys, playerIndex) {
   const roundEndEvent = Event(`round_end_player${playerIndex}`);
 
   // Create the waiting screen UI
-  const { screen, teamSwitchEvent } = createWaitingScreen(
+  const { screen, teamSwitchEvent } = waitingScreen(
     playerNumber,
     team,
     keys,
@@ -669,27 +671,6 @@ function WaitingGame(playerNumber, team = 0, keys, playerIndex) {
 
   // Get dimensions based on main container
   const rect = mainContainer.getBoundingClientRect();
-
-  /**
-   * Creates waiting screen UI
-   * 
-   * @param {number} num - Player number
-   * @param {number} teamId - Team ID
-   * @param {Object} keyConfig - Key configuration
-   * @param {number} index - Player index
-   * @returns {Object} Screen element and team switch event
-   */
-  function createWaitingScreen(num, teamId, keyConfig, index) {
-    // Implementation would go here, similar to the waitingScreen function
-    // This is a placeholder to show the concept
-    const screenElement = document.createElement('div');
-    screenElement.classList.add('playerSetupScreen');
-    screenElement.textContent = `Player ${num} setup`;
-
-    const switchEvent = Event(`team_switch_player${index}`);
-
-    return { screen: screenElement, teamSwitchEvent: switchEvent };
-  }
 
   // Return the game controller with its events and dimensions
   return {
