@@ -16,7 +16,8 @@ import {
   createWall,
   createBall,
   createScoreBoard,
-  waitingScreen
+  waitingScreen,
+  createGround
 } from './ui/graphics.js';
 
 // Import game state management
@@ -289,6 +290,7 @@ const startGame = () => {
   initGame();
 };
 
+
 /**
  * Initializes the game for gameplay
  */
@@ -303,12 +305,17 @@ const initGame = () => {
   scoreBoard = scoreBoardElements.container;
   gameContainer.appendChild(scoreBoard);
 
-  // Create center wall/net
-  const wall = createWall();
+  // Create ground element first (so it's under everything else)
+  const groundElement = createGround();
+  gameContainer.appendChild(groundElement);
+  const groundHeight = 40; // Match the height defined in createGround
+
+  // Create center wall/net with improved height
+  const wall = createWall(groundHeight, field.height);
   gameContainer.appendChild(wall);
 
   // Calculate ground position (where slimes stand)
-  const groundPosition = field.height - 40; // 40px from bottom
+  const groundPosition = field.height - groundHeight; // Adjust for ground height
 
   // Create ball DOM element
   const ballElement = createBall();
@@ -328,7 +335,7 @@ const initGame = () => {
   const ballConstraints = {
     rightBoundry: field.width,
     leftBoundry: 0,
-    ground: groundPosition,
+    ground: groundPosition, // Use adjusted ground position
     maxVelocity: 15
   };
 
@@ -347,7 +354,7 @@ const initGame = () => {
       ballDimensions.radius,
       ballConstraints.rightBoundry,
       ballConstraints.leftBoundry,
-      ballConstraints.ground,
+      ballConstraints.ground, // Pass adjusted ground position
       ballConstraints.maxVelocity
     ),
     update: function() {
