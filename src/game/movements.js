@@ -62,7 +62,7 @@ export const startJump = (acceleration, killSignal, end) => {
   const maxFrames = 20;
   const minFrames = 6;
 
-  const frameMovement = frameMovement(
+  const jumpMovement = frameMovement(
     maxFrames,
     (frame) => {
       frameCount++;
@@ -78,7 +78,7 @@ export const startJump = (acceleration, killSignal, end) => {
   );
 
   return Movement(() => {
-    const yValue = frameMovement.next().value;
+    const yValue = jumpMovement.next().value;
     return { x: 0, y: yValue };
   });
 };
