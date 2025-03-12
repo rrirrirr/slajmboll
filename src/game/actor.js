@@ -1,147 +1,276 @@
-import { Event } from './events.js'
-import { MAXVELOCITY, TERMINALVELOCITY, K } from './constants.js'
+import { Event } from '../core/events.js';
+import { MAXVELOCITY, TERMINALVELOCITY, K } from '../constants.js';
 
+/**
+ * Creates a physics actor for game entities
+ * 
+ * @param {Object} pos - Initial position
+ * @param {number} pos.x - X-coordinate
+ * @param {number} pos.y - Y-coordinate
+ * @param {Object} velocity - Initial velocity
+ * @param {number} velocity.x - Horizontal velocity
+ * @param {number} velocity.y - Vertical velocity
+ * @param {number} radius - Collision radius (relative size)
+ * @param {number} rightBoundary - Right boundary of movement area
+ * @param {number} leftBoundary - Left boundary of movement area
+ * @param {number} ground - Ground y-coordinate
+ * @param {number} maxVelocity - Maximum velocity
+ * @param {Object} resizeEvent - Event for handling game resize
+ * @param {number} [team=0] - Team identifier (0=none, 1=left, 2=right)
+ * @returns {ActorObject} Actor object with physics and movement methods
+ */
 export default function Actor(
   pos,
   velocity,
   radius,
-  rightBoundry,
-  leftBoundry,
+  rightBoundary,
+  leftBoundary,
   ground,
   maxVelocity,
   resizeEvent,
-  team = 0  // Add team parameter
+  team = 0
 ) {
-  const _pos = pos || { x: 0, y: 0 };
-  const _velocity = velocity || { x: 0, y: 0 };
-  let _areaWidth = rightBoundry - leftBoundry;
-  let _radius = radius; // collider
-  let _realRadius = (_areaWidth / K) * radius;
-  let _rightBoundry = rightBoundry;
-  let _leftBoundry = leftBoundry;
-  let _team = team; // Store the team
+  /**
+   * The actor's position
+   * @type {Object}
+   */
+  const position = pos || { x: 0, y: 0 };
+
+  /**
+   * The actor's velocity
+   * @type {Object}
+   */
+  const actorVelocity = velocity || { x: 0, y: 0 };
+
+  /**
+   * Width of the play area
+   * @type {number}
+   */
+  let areaWidth = rightBoundary - leftBoundary;
+
+  /**
+   * Relative collision radius
+   * @type {number}
+   */
+  let collisionRadius = radius;
+
+  /**
+   * Actual collision radius in pixels
+   * @type {number}
+   */
+  let actualRadius = (areaWidth / K) * radius;
+
+  /**
+   * Right movement boundary
+   * @type {number}
+   */
+  let rightLimit = rightBoundary;
+
+  /**
+   * Left movement boundary
+   * @type {number}
+   */
+  let leftLimit = leftBoundary;
+
+  /**
+   * Team identifier (0=none, 1=left, 2=right)
+   * @type {number}
+   */
+  let teamId = team;
 
   // Calculate net position (assuming net is at center)
-  const _netPosition = (_rightBoundry + _leftBoundry) / 2;
+  const netPosition = (rightLimit + leftLimit) / 2;
 
-  // Adjusted boundaries based on team
-  let _effectiveLeftBoundry = _leftBoundry;
-  let _effectiveRightBoundry = _rightBoundry;
+  // Boundaries adjusted based on team
+  let effectiveLeftBoundary = leftLimit;
+  let effectiveRightBoundary = rightLimit;
 
   // Set team-specific boundaries
-  if (_team === 1) { // Team 1 (left side)
-    _effectiveRightBoundry = _netPosition;
-  } else if (_team === 2) { // Team 2 (right side)
-    _effectiveLeftBoundry = _netPosition;
-  }
+  updateTeamBoundaries();
 
-  // Existing code...
-  let _ground = ground;
-  let _maxVelocity = (_areaWidth / K) * 0.1;
-  let _wallIshugged = false;
-  const _deacceleration = (_areaWidth / K) * 0.008;
-  const _jumpAcceleration = 0.6;
-  const _downwardAcceleration = 0.9;
+  /**
+   * Ground y-coordinate
+   * @type {number}
+   */
+  let groundLevel = ground;
 
-  let _movements = [];
+  /**
+   * Maximum movement velocity
+   * @type {number}
+   */
+  let maximumVelocity = (areaWidth / K) * 0.1;
 
+  /**
+   * Flag indicating the actor is touching a wall
+   * @type {boolean}
+   */
+  let isTouchingWall = false;
+
+  /**
+   * Movement deceleration (friction)
+   * @type {number}
+   */
+  const movementDeceleration = (areaWidth / K) * 0.008;
+
+  /**
+   * Jump acceleration
+   * @type {number}
+   */
+  const jumpAcceleration = 0.6;
+
+  /**
+   * Downward acceleration (gravity)
+   * @type {number}
+   */
+  let downwardAcceleration = 0.9;
+
+  /**
+   * Active movement generators
+   * @type {Array}
+   */
+  let movements = [];
+
+  // Create events
   const groundHitEvent = Event('ground hit');
   const wallHitEvent = Event('wall hit');
-  const netHitEvent = Event('net hit'); // New event for net collisions
+  const netHitEvent = Event('net hit');
 
-  // Update the updatePosition function to use team-specific boundaries
-  const updatePosition = () => {
+  /**
+   * Update actor's position based on velocity and handle collisions
+   */
+  function updatePosition() {
     // Calculate next position
-    let nextPos = { x: _pos.x + _velocity.x, y: _pos.y + _velocity.y };
-    let wasGrounded = _pos.y >= _ground;
+    let nextPos = {
+      x: position.x + actorVelocity.x,
+      y: position.y + actorVelocity.y
+    };
 
-    // Check ground collision
-    if (nextPos.y > _ground) {
-      nextPos.y = _ground;
-      _velocity.y = 0;
+    let wasGrounded = position.y >= groundLevel;
+
+    // Handle ground collision
+    handleGroundCollision(nextPos, wasGrounded);
+
+    // Handle boundary collisions
+    handleBoundaryCollisions(nextPos);
+
+    // Update position
+    position.x = nextPos.x;
+    position.y = nextPos.y;
+  }
+
+  /**
+   * Handle collision with the ground
+   * @param {Object} nextPos - Next calculated position
+   * @param {boolean} wasGrounded - Whether actor was on ground in previous frame
+   */
+  function handleGroundCollision(nextPos, wasGrounded) {
+    if (nextPos.y > groundLevel) {
+      nextPos.y = groundLevel;
+      actorVelocity.y = 0;
       if (!wasGrounded) {
-        // Only emit if we just landed
+        // Only emit if just landed
         groundHitEvent.emit();
       }
     }
+  }
 
-    // Check left boundary collision
-    if (nextPos.x - _realRadius < _effectiveLeftBoundry) {
-      nextPos.x = _effectiveLeftBoundry + _realRadius;
-      _velocity.x = 0;
+  /**
+   * Handle collisions with boundaries and walls
+   * @param {Object} nextPos - Next calculated position
+   */
+  function handleBoundaryCollisions(nextPos) {
+    // Left boundary collision
+    if (nextPos.x - actualRadius < effectiveLeftBoundary) {
+      nextPos.x = effectiveLeftBoundary + actualRadius;
+      actorVelocity.x = 0;
       wallHitEvent.emit(-1);
-      _wallIshugged = true;
+      isTouchingWall = true;
     }
-    // Check right boundary collision
-    else if (nextPos.x + _realRadius > _effectiveRightBoundry) {
-      nextPos.x = _effectiveRightBoundry - _realRadius;
-      _velocity.x = 0;
+    // Right boundary collision
+    else if (nextPos.x + actualRadius > effectiveRightBoundary) {
+      nextPos.x = effectiveRightBoundary - actualRadius;
+      actorVelocity.x = 0;
 
-      // Check if this is the net or the right wall
-      if (_team === 1 && Math.abs(_effectiveRightBoundry - _netPosition) < 1) {
+      // Determine if this is a net collision or wall collision
+      if (teamId === 1 && Math.abs(effectiveRightBoundary - netPosition) < 1) {
         netHitEvent.emit(1);
-      } else if (_team === 2 && Math.abs(_effectiveRightBoundry - _rightBoundry) < 1) {
+      } else if (teamId === 2 && Math.abs(effectiveRightBoundary - rightLimit) < 1) {
         wallHitEvent.emit(1);
       } else {
         wallHitEvent.emit(1);
       }
 
-      _wallIshugged = true;
+      isTouchingWall = true;
     }
     // No longer touching a wall
-    else if (_wallIshugged) {
-      _wallIshugged = false;
+    else if (isTouchingWall) {
+      isTouchingWall = false;
       wallHitEvent.emit(0);
     }
+  }
 
-    // Update position
-    _pos.x = nextPos.x;
-    _pos.y = nextPos.y;
-  };
+  /**
+   * Update the actor's team and adjust boundaries
+   * @param {number} newTeam - New team ID (0=none, 1=left, 2=right)
+   */
+  function updateTeam(newTeam) {
+    teamId = newTeam;
+    updateTeamBoundaries();
+  }
 
-  // Method to update team
-  const updateTeam = (newTeam) => {
-    _team = newTeam;
-
-    // Update boundaries based on new team
-    if (_team === 1) { // Team 1 (left side)
-      _effectiveLeftBoundry = _leftBoundry;
-      _effectiveRightBoundry = _netPosition;
-    } else if (_team === 2) { // Team 2 (right side)
-      _effectiveLeftBoundry = _netPosition;
-      _effectiveRightBoundry = _rightBoundry;
+  /**
+   * Update boundaries based on the actor's team
+   */
+  function updateTeamBoundaries() {
+    if (teamId === 1) { // Team 1 (left side)
+      effectiveLeftBoundary = leftLimit;
+      effectiveRightBoundary = netPosition;
+    } else if (teamId === 2) { // Team 2 (right side)
+      effectiveLeftBoundary = netPosition;
+      effectiveRightBoundary = rightLimit;
     } else {
       // No team, use full boundaries
-      _effectiveLeftBoundry = _leftBoundry;
-      _effectiveRightBoundry = _rightBoundry;
+      effectiveLeftBoundary = leftLimit;
+      effectiveRightBoundary = rightLimit;
     }
-  };
+  }
 
-  // Initialize with passed team
-  updateTeam(_team);
+  /**
+   * Get the actor's current horizontal speed
+   * @returns {number} Current horizontal speed
+   */
+  function getSpeed() {
+    return actorVelocity.x;
+  }
 
-  // Rest of the existing functions...
-  const getSpeed = () => {
-    return _velocity.x;
-  };
-
-  const addMovement = (movement) => {
+  /**
+   * Add a movement generator to the actor
+   * @param {Object} movement - Movement generator object
+   */
+  function addMovement(movement) {
     if (movement && typeof movement.next === 'function') {
-      _movements.push(movement);
+      movements.push(movement);
     }
-  };
+  }
 
-  const removeMovement = (movement) => {
+  /**
+   * Remove a movement generator from the actor
+   * @param {Object} movement - Movement generator to remove
+   */
+  function removeMovement(movement) {
     if (movement) {
-      const index = _movements.indexOf(movement);
+      const index = movements.indexOf(movement);
       if (index !== -1) {
-        _movements.splice(index, 1);
+        movements.splice(index, 1);
       }
     }
-  };
+  }
 
-  const updateMovements = () => {
-    _movements = _movements.filter((movement) => {
+  /**
+   * Process all active movement generators
+   */
+  function updateMovements() {
+    movements = movements.filter((movement) => {
       if (!movement || typeof movement.next !== 'function') {
         return false;
       }
@@ -151,10 +280,10 @@ export default function Actor(
 
         if (update) {
           if (update.x !== undefined && !isNaN(update.x)) {
-            _velocity.x += update.x;
+            actorVelocity.x += update.x;
           }
           if (update.y !== undefined && !isNaN(update.y)) {
-            _velocity.y += update.y;
+            actorVelocity.y += update.y;
           }
         }
 
@@ -164,48 +293,62 @@ export default function Actor(
         return false;
       }
     });
-  };
+  }
 
-  const updateVelocity = () => {
+  /**
+   * Update velocity with physics rules (drag, gravity, limits)
+   */
+  function updateVelocity() {
     // Apply deceleration (drag)
-    _velocity.x += _deacceleration * -Math.sign(_velocity.x);
+    actorVelocity.x += movementDeceleration * -Math.sign(actorVelocity.x);
 
     // Cap horizontal velocity
-    if (Math.abs(_velocity.x) > _maxVelocity) {
-      _velocity.x = Math.sign(_velocity.x) * _maxVelocity;
+    if (Math.abs(actorVelocity.x) > maximumVelocity) {
+      actorVelocity.x = Math.sign(actorVelocity.x) * maximumVelocity;
     }
 
     // Stop completely if velocity is very small
-    if (Math.abs(_deacceleration) > Math.abs(_velocity.x)) {
-      _velocity.x = 0;
+    if (Math.abs(movementDeceleration) > Math.abs(actorVelocity.x)) {
+      actorVelocity.x = 0;
     }
 
     // Apply gravity
-    _velocity.y += _downwardAcceleration;
+    actorVelocity.y += downwardAcceleration;
 
     // Cap vertical velocity
-    if (-_velocity.y > _maxVelocity) {
-      _velocity.y = -_maxVelocity;
+    if (-actorVelocity.y > maximumVelocity) {
+      actorVelocity.y = -maximumVelocity;
     }
-    if (_velocity.y > TERMINALVELOCITY) {
-      _velocity.y = TERMINALVELOCITY;
+    if (actorVelocity.y > TERMINALVELOCITY) {
+      actorVelocity.y = TERMINALVELOCITY;
     }
-  };
+  }
 
-  const setMaxVelocity = (velocity) => {
-    _maxVelocity = (_areaWidth / K) * velocity;
-  };
+  /**
+   * Set the maximum velocity for the actor
+   * @param {number} velocity - New maximum velocity multiple
+   */
+  function setMaxVelocity(velocity) {
+    maximumVelocity = (areaWidth / K) * velocity;
+  }
 
-  const resetMaxVelocity = () => {
-    _maxVelocity = (_areaWidth / K) * 0.1;
-  };
+  /**
+   * Reset maximum velocity to default value
+   */
+  function resetMaxVelocity() {
+    maximumVelocity = (areaWidth / K) * 0.1;
+  }
 
-  const update = () => {
+  /**
+   * Update the actor's physics for one frame
+   */
+  function update() {
     updateMovements();
     updateVelocity();
     updatePosition();
-  };
+  }
 
+  // Return the actor interface
   return {
     addMovement,
     removeMovement,
@@ -213,16 +356,16 @@ export default function Actor(
     groundHitEvent,
     wallHitEvent,
     netHitEvent,
-    pos: _pos,
+    pos: position,
     setMaxVelocity,
     resetMaxVelocity,
     updateTeam,
-    _velocity,
+    _velocity: actorVelocity, // Keep for backward compatibility
     getSpeed,
-    _downwardAcceleration,
-    jumpAcceleration: _jumpAcceleration,
-    ground: _ground,
-    realRadius: _realRadius,
-    team: _team
+    _downwardAcceleration: downwardAcceleration, // Keep for backward compatibility
+    jumpAcceleration,
+    ground: groundLevel,
+    realRadius: actualRadius,
+    team: teamId
   };
 }

@@ -1,16 +1,48 @@
+/**
+ * Global event registry
+ * @type {Map<string, EventObject>}
+ */
 export const events = new Map();
 
-export function Event(name) {
-  // Check if event already exists
-  if (events.has(name)) {
-    return events.get(name);
+/**
+ * @typedef {Object} EventSubscription
+ * @property {Function} unsubscribe - Function to unsubscribe from the event
+ */
+
+/**
+ * @typedef {Object} EventObject
+ * @property {Function} subscribe - Function to add a callback to the event
+ * @property {Function} emit - Function to trigger the event with data
+ */
+
+/**
+ * Creates or retrieves an event by name
+ * 
+ * @param {string} eventName - Unique name for the event
+ * @returns {EventObject} Event object with subscribe and emit methods
+ */
+export function Event(eventName) {
+  // Return existing event if already created
+  if (events.has(eventName)) {
+    return events.get(eventName);
   }
 
-  // Create new observers set
+  /**
+   * Set of callback functions subscribed to this event
+   * @type {Set<Function>}
+   */
   const observers = new Set();
 
-  // Create the event object
-  const event = {
+  /**
+   * The event object with subscribe and emit methods
+   * @type {EventObject}
+   */
+  const eventObject = {
+    /**
+     * Subscribe to the event
+     * @param {Function} callback - Function to call when event is emitted
+     * @returns {EventSubscription} Subscription object with unsubscribe method
+     */
     subscribe: (callback) => {
       observers.add(callback);
       return {
@@ -20,6 +52,10 @@ export function Event(name) {
       };
     },
 
+    /**
+     * Emit the event with data
+     * @param {*} data - Data to pass to all subscribed callbacks
+     */
     emit: (data) => {
       observers.forEach(callback => {
         callback(data);
@@ -27,6 +63,7 @@ export function Event(name) {
     }
   };
 
-  events.set(name, event);
-  return event;
+  // Store and return the event object
+  events.set(eventName, eventObject);
+  return eventObject;
 }

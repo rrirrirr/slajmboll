@@ -1,5 +1,31 @@
-export const MAXVELOCITY = 10;
-export const GROUND = 200; //should not be a constant. Should be grabbed from css prop
-export const GRAVITY = 0.55;
-export const TERMINALVELOCITY = 12.5;
-export const K = 13
+import { physics, dimensions } from '../config.js';
+
+/**
+ * Maximum horizontal velocity
+ * @type {number}
+ */
+export const MAXVELOCITY = physics.MAX_VELOCITY;
+
+/**
+ * Ground position (y-coordinate)
+ * @type {number}
+ */
+export const GROUND = dimensions.GROUND;
+
+/**
+ * Gravity acceleration
+ * @type {number}
+ */
+export const GRAVITY = physics.GRAVITY;
+
+/**
+ * Maximum falling speed
+ * @type {number}
+ */
+export const TERMINALVELOCITY = physics.TERMINAL_VELOCITY;
+
+/**
+ * Scaling constant for sizes and speeds
+ * @type {number}
+ */
+export const K = physics.K;
