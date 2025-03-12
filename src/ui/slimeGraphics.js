@@ -76,29 +76,7 @@ export function updateSlimeTeamAppearance(slimeElement, teamNumber) {
 }
 
 /**
- * Applies animation effects to the slime element
- * 
- * @param {HTMLElement} slimeElement - The slime DOM element
- * @param {Object} velocity - Current velocity of the slime
- */
-export function applySlimeAnimationEffects(slimeElement, velocity) {
-  // Squash and stretch effect based on horizontal velocity
-  const horizontalEffect = velocity.x * 2;
-
-  slimeElement.style.borderTopLeftRadius = `${70 + horizontalEffect}px`;
-  slimeElement.style.borderTopRightRadius = `${70 - horizontalEffect}px`;
-
-  // Height adjustment based on horizontal speed (squash effect)
-  const baseHeight = parseInt(slimeElement.style.height);
-  const heightReduction = Math.abs(velocity.x * 1);
-
-  if (!isNaN(baseHeight)) {
-    slimeElement.style.height = `${baseHeight - heightReduction}px`;
-  }
-}
-
-/**
- * Renders slime position and appearance
+ * Renders slime position and appearance with proper half-circle shape
  * 
  * @param {HTMLElement} slimeElement - The slime DOM element
  * @param {Object} position - Position {x, y} of the slime
@@ -107,16 +85,35 @@ export function applySlimeAnimationEffects(slimeElement, velocity) {
  * @param {number} height - Base height of the slime
  */
 export function renderSlime(slimeElement, position, velocity, width, height) {
-  // Apply position
+  // Apply position - ensure slime stays on the ground
   slimeElement.style.left = `${position.x - width / 2}px`;
 
-  // Apply height adjustment and vertical position with squash effect
-  const heightReduction = Math.abs(velocity.x * 1);
-  slimeElement.style.height = `${height - heightReduction}px`;
-  slimeElement.style.top = `${position.y - height + heightReduction}px`;
+  // Keep slime on the ground
+  slimeElement.style.top = `${position.y - height}px`;
 
-  // Apply deformation effect
-  applySlimeAnimationEffects(slimeElement, velocity);
+  // Apply squash effect based on horizontal velocity
+  const squashFactor = Math.min(Math.abs(velocity.x) * 0.03, 0.3);
+
+  // When moving, slightly adjust width and height for squash effect
+  // but maintain the volume of the half-circle
+  const stretchedWidth = width * (1 + squashFactor);
+  const compressedHeight = height * (1 - squashFactor * 0.5);
+
+  slimeElement.style.width = `${stretchedWidth}px`;
+  slimeElement.style.height = `${compressedHeight}px`;
+
+  // Apply deformation effect - adjust border radius for a more dynamic look
+  const horizontalEffect = velocity.x * 2;
+  const baseRadius = stretchedWidth; // Make sure it's a half-circle
+
+  slimeElement.style.borderTopLeftRadius = `${baseRadius - horizontalEffect}px`;
+  slimeElement.style.borderTopRightRadius = `${baseRadius + horizontalEffect}px`;
+
+  // Ensure perfect half circle when still
+  if (Math.abs(velocity.x) < 0.1) {
+    slimeElement.style.borderTopLeftRadius = `${baseRadius}px`;
+    slimeElement.style.borderTopRightRadius = `${baseRadius}px`;
+  }
 }
 
 /**
@@ -156,4 +153,62 @@ export function createSlimeEffect(slimeElement, effectType, baseColor) {
       // Reset to default
       slimeElement.style.background = baseColor;
   }
+}
+
+/**
+ * Creates the ground element
+ * 
+ * @returns {HTMLElement} Ground element
+ */
+export function createGround() {
+  const ground = document.createElement('div');
+  ground.id = 'ground';
+  ground.style.position = 'absolute';
+  ground.style.bottom = '0';
+  ground.style.width = '100%';
+  ground.style.height = '40px';
+  ground.style.backgroundColor = '#8B4513';
+  ground.style.backgroundImage = 'linear-gradient(0deg, #8B4513 60%, #A0522D 100%)';
+  ground.style.borderTop = '2px solid #654321';
+  ground.style.zIndex = '30';
+
+  return ground;
+}
+
+/**
+ * Creates the center wall/net with improved height
+ * 
+ * @param {number} groundHeight - Height of the ground element
+ * @param {number} fieldHeight - Total height of the playing field
+ * @returns {HTMLElement} Wall element
+ */
+export function createWall(groundHeight = 40, fieldHeight = 400) {
+  const netHeight = fieldHeight * 0.3; // 30% of field height
+
+  const wall = document.createElement('div');
+  wall.id = 'wall';
+  wall.style.position = 'absolute';
+  wall.style.bottom = `${groundHeight}px`; // Start at ground level
+  wall.style.left = '50%';
+  wall.style.transform = 'translateX(-50%)';
+  wall.style.width = '10px';
+  wall.style.height = `${netHeight}px`;
+  wall.style.backgroundColor = '#0066cc';
+  wall.style.borderTopLeftRadius = '5px';
+  wall.style.borderTopRightRadius = '5px';
+  wall.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.3)';
+  wall.style.zIndex = '40';
+
+  // Add a net texture
+  const netTexture = document.createElement('div');
+  netTexture.style.position = 'absolute';
+  netTexture.style.top = '0';
+  netTexture.style.left = '0';
+  netTexture.style.width = '100%';
+  netTexture.style.height = '100%';
+  netTexture.style.backgroundImage = 'repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px)';
+
+  wall.appendChild(netTexture);
+
+  return wall;
 }
