@@ -1,6 +1,6 @@
 import { Event, events } from '../core/events.js';
 import { createSlimeElement } from '../ui/slimeGraphics.js';
-import { physics, rules } from '../config.js';
+import { physics, rules } from '../../config.js';
 import {
   GAME_STATES,
   setGameState,

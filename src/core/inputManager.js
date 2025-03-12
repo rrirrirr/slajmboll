@@ -1,5 +1,5 @@
 import { Event } from './events.js';
-import { teams } from '.../config.js';
+import { teams } from '../../config.js';
 
 /**
  * @typedef {Object} KeyConfig

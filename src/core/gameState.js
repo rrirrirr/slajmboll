@@ -1,5 +1,5 @@
 import { Event } from './events.js';
-import { rules } from '../config.js';
+import { rules } from '../../config.js';
 
 /**
  * Game state constants

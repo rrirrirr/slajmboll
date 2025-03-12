@@ -1,6 +1,6 @@
 import { Event } from '../core/events.js';
 import { updatePlayerTeam } from '../core/gameState.js';
-import { teams } from '../config.js';
+import { teams } from '../../config.js';
 
 /**
  * Creates a slime element

@@ -1,8 +1,7 @@
 import { Event } from '../core/events.js';
-import { GRAVITY, TERMINALVELOCITY } from '../constants.js';
 import Actor from './actor.js';
 import { Animation } from '../utils/animations.js';
-import { physics } from '../config.js';
+import { physics } from '../../config.js';
 
 /**
  * @typedef {Object} BallConstraints

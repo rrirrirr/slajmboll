@@ -1,5 +1,4 @@
 import { Event } from '../core/events.js';
-import { MAXVELOCITY, TERMINALVELOCITY, K } from '../constants.js';
 
 /**
  * @typedef {Object} Position

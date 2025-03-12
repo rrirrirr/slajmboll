@@ -1,9 +1,8 @@
 import { Event, events } from '../core/events.js';
-import { K } from '../constants.js';
 import Actor from './actor.js';
 import { createSlimeElement, updateSlimeTeamAppearance, renderSlime } from '../ui/slimeGraphics.js';
 import { Animation } from '../utils/animations.js';
-import { movement } from '../config.js';
+import { movement } from '../../config.js';
 import {
   startJump,
   startOppositeRun,

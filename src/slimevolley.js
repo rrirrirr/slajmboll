@@ -1,8 +1,6 @@
-// /src/slimevolley.js
 import { Slime } from './game/slime.js';
 import { Ball } from './game/ball.js';
-import { GRAVITY } from './constants.js';
-import { physics, rules } from './config.js';
+import { physics, rules } from '../config.js';
 import {
   handleKeyDown,
   handleKeyUp,
