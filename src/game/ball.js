@@ -1,9 +1,43 @@
-import { Event } from './events.js';
-import { GRAVITY, TERMINALVELOCITY } from './constants.js';
+import { Event } from '../core/events.js';
+import { GRAVITY, TERMINALVELOCITY } from '../constants.js';
 import Actor from './actor.js';
-import { Animation } from './Animations.js';
+import { Animation } from '../utils/animations.js';
+import { physics } from '../config.js';
 
-export function Ball(pos, dimensions, constraints, field, animationsEvent) {
+/**
+ * @typedef {Object} BallConstraints
+ * @property {number} rightBoundry - Right boundary limit
+ * @property {number} leftBoundry - Left boundary limit
+ * @property {number} ground - Ground level y-coordinate
+ * @property {number} maxVelocity - Maximum velocity
+ */
+
+/**
+ * @typedef {Object} FieldDimensions
+ * @property {number} width - Field width
+ * @property {number} height - Field height
+ */
+
+/**
+ * @typedef {Object} BallEvents
+ * @property {Object} hitGroundEvent - Event for ground collision
+ * @property {Object} hitNetEvent - Event for net collision
+ * @property {Object} hitSlimeEvent - Event for slime collision
+ * @property {Object} hitWallEvent - Event for wall collision
+ * @property {Object} scoredEvent - Event for scoring
+ */
+
+/**
+ * Creates a ball entity for the game
+ * 
+ * @param {Object} position - Initial position {x, y}
+ * @param {Object} dimensions - Ball dimensions {radius}
+ * @param {BallConstraints} constraints - Movement constraints
+ * @param {FieldDimensions} field - Field dimensions
+ * @param {Object} animationsEvent - Event for visual animations
+ * @returns {Object} Ball object with physics and rendering methods
+ */
+export function Ball(position, dimensions, constraints, field, animationsEvent) {
   // Create events for ball collisions
   const hitGroundEvent = Event('ball hit ground');
   const hitNetEvent = Event('ball hit net');
@@ -12,8 +46,8 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
   const scoredEvent = Event('ball scored');
 
   // Create ball actor for physics
-  const ao = Actor(
-    pos,
+  const actorObject = Actor(
+    position,
     { x: 0, y: 0 },
     dimensions.radius,
     constraints.rightBoundry,
@@ -23,24 +57,32 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
   );
 
   // Override the actor's update position method to handle ball-specific collisions
-  const originalUpdatePosition = ao.update;
-  ao.update = () => {
+  const originalUpdatePosition = actorObject.update;
+  actorObject.update = () => {
     originalUpdatePosition();
     checkCollisions();
   };
 
   // Increase the ball's bounciness
-  const bounceFactor = 0.8; // 80% energy retained on bounce
+  const bounceFactor = physics.BOUNCE_FACTOR; // 80% energy retained on bounce
 
   // Reference to the ball DOM element
   let element = null;
 
-  // Set the DOM element
+  /**
+   * Sets the DOM element for the ball
+   * 
+   * @param {HTMLElement} el - Ball DOM element
+   */
   const setElement = (el) => {
     element = el;
   };
 
-  // Create or get the ball DOM element
+  /**
+   * Creates a DOM element for the ball
+   * 
+   * @returns {HTMLElement} Ball DOM element
+   */
   const createElement = () => {
     // Create ball element if it doesn't exist
     element = document.createElement('div');
@@ -54,15 +96,17 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
     return element;
   };
 
-  // Check for collisions with game elements
+  /**
+   * Checks for collisions with game elements
+   */
   const checkCollisions = () => {
     // Ground collision with bounce
-    if (ao.pos.y >= constraints.ground && ao._velocity.y > 0) {
-      ao.pos.y = constraints.ground;
+    if (actorObject.pos.y >= constraints.ground && actorObject._velocity.y > 0) {
+      actorObject.pos.y = constraints.ground;
 
       // Apply bounce if the ball has enough velocity
-      if (Math.abs(ao._velocity.y) > 0.5) {
-        ao._velocity.y = -ao._velocity.y * bounceFactor;
+      if (Math.abs(actorObject._velocity.y) > 0.5) {
+        actorObject._velocity.y = -actorObject._velocity.y * bounceFactor;
 
         // Visual feedback for ground hit
         if (animationsEvent) {
@@ -81,10 +125,10 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
         }
       } else {
         // Stop if the bounce would be too small
-        ao._velocity.y = 0;
+        actorObject._velocity.y = 0;
       }
 
-      hitGroundEvent.emit({ x: ao.pos.x, y: ao.pos.y });
+      hitGroundEvent.emit({ x: actorObject.pos.x, y: actorObject.pos.y });
       checkScoring();
     }
 
@@ -97,39 +141,39 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
     const netTop = constraints.ground - netHeight;
 
     // Check if hitting sides of the field
-    if (ao.pos.x - ao.realRadius <= constraints.leftBoundry) {
-      ao.pos.x = constraints.leftBoundry + ao.realRadius;
-      ao._velocity.x = -ao._velocity.x * bounceFactor;
+    if (actorObject.pos.x - actorObject.realRadius <= constraints.leftBoundry) {
+      actorObject.pos.x = constraints.leftBoundry + actorObject.realRadius;
+      actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
       hitWallEvent.emit({ side: 'left' });
-    } else if (ao.pos.x + ao.realRadius >= constraints.rightBoundry) {
-      ao.pos.x = constraints.rightBoundry - ao.realRadius;
-      ao._velocity.x = -ao._velocity.x * bounceFactor;
+    } else if (actorObject.pos.x + actorObject.realRadius >= constraints.rightBoundry) {
+      actorObject.pos.x = constraints.rightBoundry - actorObject.realRadius;
+      actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
       hitWallEvent.emit({ side: 'right' });
     }
 
     // Check net collision
-    const ballBottom = ao.pos.y + ao.realRadius;
+    const ballBottom = actorObject.pos.y + actorObject.realRadius;
     if (
-      ao.pos.x + ao.realRadius >= netLeft &&
-      ao.pos.x - ao.realRadius <= netRight &&
+      actorObject.pos.x + actorObject.realRadius >= netLeft &&
+      actorObject.pos.x - actorObject.realRadius <= netRight &&
       ballBottom >= netTop
     ) {
       // Determine which side of the net the ball hit
-      if (ao._velocity.x > 0 && ao.pos.x < netCenter) {
+      if (actorObject._velocity.x > 0 && actorObject.pos.x < netCenter) {
         // Ball moving right, hitting left side of net
-        ao.pos.x = netLeft - ao.realRadius;
-        ao._velocity.x = -ao._velocity.x * bounceFactor;
-      } else if (ao._velocity.x < 0 && ao.pos.x > netCenter) {
+        actorObject.pos.x = netLeft - actorObject.realRadius;
+        actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
+      } else if (actorObject._velocity.x < 0 && actorObject.pos.x > netCenter) {
         // Ball moving left, hitting right side of net
-        ao.pos.x = netRight + ao.realRadius;
-        ao._velocity.x = -ao._velocity.x * bounceFactor;
-      } else if (ao._velocity.y > 0) {
+        actorObject.pos.x = netRight + actorObject.realRadius;
+        actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
+      } else if (actorObject._velocity.y > 0) {
         // Ball moving down, hitting top of net
-        ao.pos.y = netTop - ao.realRadius;
-        ao._velocity.y = -ao._velocity.y * bounceFactor;
+        actorObject.pos.y = netTop - actorObject.realRadius;
+        actorObject._velocity.y = -actorObject._velocity.y * bounceFactor;
       }
 
-      hitNetEvent.emit({ x: ao.pos.x, y: ao.pos.y });
+      hitNetEvent.emit({ x: actorObject.pos.x, y: actorObject.pos.y });
 
       // Visual feedback for net hit
       if (animationsEvent) {
@@ -149,24 +193,31 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
     }
   };
 
-  // Check if a team scored
+  /**
+   * Checks if a team scored
+   */
   const checkScoring = () => {
     // Ball must be on the ground
-    if (ao.pos.y < constraints.ground - 5) return;
+    if (actorObject.pos.y < constraints.ground - 5) return;
 
     // Determine which side scored
-    const scoringSide = ao.pos.x < field.width / 2 ? 2 : 1;
+    const scoringSide = actorObject.pos.x < field.width / 2 ? 2 : 1;
 
     // Only score if the ball has very little vertical velocity
-    if (Math.abs(ao._velocity.y) < 0.8) {
+    if (Math.abs(actorObject._velocity.y) < 0.8) {
       scoredEvent.emit({
         scoringSide,
-        position: { x: ao.pos.x, y: ao.pos.y }
+        position: { x: actorObject.pos.x, y: actorObject.pos.y }
       });
     }
   };
 
-  // Check collision with a slime
+  /**
+   * Checks collision with a slime
+   * 
+   * @param {Object} slime - Slime object to check collision with
+   * @returns {boolean} True if collision occurred
+   */
   const checkSlimeCollision = (slime) => {
     if (!slime || !slime.ao) return false;
 
@@ -176,23 +227,23 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
     const slimeRadius = slime.ao.realRadius;
 
     // Calculate distance between ball and slime
-    const dx = ao.pos.x - slimeX;
-    const dy = ao.pos.y - slimeY;
+    const dx = actorObject.pos.x - slimeX;
+    const dy = actorObject.pos.y - slimeY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     // Check if collision occurred
-    if (distance < ao.realRadius + slimeRadius) {
+    if (distance < actorObject.realRadius + slimeRadius) {
       // Calculate collision normal
       const nx = dx / distance;
       const ny = dy / distance;
 
       // Adjust ball position to prevent overlap
-      ao.pos.x = slimeX + nx * (ao.realRadius + slimeRadius);
-      ao.pos.y = slimeY + ny * (ao.realRadius + slimeRadius);
+      actorObject.pos.x = slimeX + nx * (actorObject.realRadius + slimeRadius);
+      actorObject.pos.y = slimeY + ny * (actorObject.realRadius + slimeRadius);
 
       // Calculate relative velocity
-      const vx = ao._velocity.x - (slime.ao._velocity ? slime.ao._velocity.x : 0);
-      const vy = ao._velocity.y - (slime.ao._velocity ? slime.ao._velocity.y : 0);
+      const vx = actorObject._velocity.x - (slime.ao._velocity ? slime.ao._velocity.x : 0);
+      const vy = actorObject._velocity.y - (slime.ao._velocity ? slime.ao._velocity.y : 0);
 
       // Calculate velocity along the normal
       const vn = vx * nx + vy * ny;
@@ -203,20 +254,20 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
         const impulse = -(1 + bounceFactor) * vn;
 
         // Apply impulse to ball velocity
-        ao._velocity.x += impulse * nx;
-        ao._velocity.y += impulse * ny;
+        actorObject._velocity.x += impulse * nx;
+        actorObject._velocity.y += impulse * ny;
 
         // Apply additional "spin" based on slime's horizontal velocity
         if (slime.ao._velocity) {
-          ao._velocity.x += slime.ao._velocity.x * 0.5;
+          actorObject._velocity.x += slime.ao._velocity.x * 0.5;
         }
 
         // Emit collision event
         hitSlimeEvent.emit({
           slimeId: slime.slimeId,
           teamNumber: slime.teamNumber,
-          velocity: { x: ao._velocity.x, y: ao._velocity.y },
-          position: { x: ao.pos.x, y: ao.pos.y }
+          velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y },
+          position: { x: actorObject.pos.x, y: actorObject.pos.y }
         });
 
         // Visual feedback for slime hit
@@ -242,37 +293,50 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
     return false;
   };
 
-  // Reset the ball with specified position and velocity
-  const reset = (position, velocity = { x: 0, y: 0 }) => {
-    ao.pos.x = position.x;
-    ao.pos.y = position.y;
-    ao._velocity.x = velocity.x;
-    ao._velocity.y = velocity.y;
+  /**
+   * Resets the ball with specified position and velocity
+   * 
+   * @param {Object} newPosition - New position {x, y}
+   * @param {Object} [newVelocity={ x: 0, y: 0 }] - New velocity
+   */
+  const reset = (newPosition, newVelocity = { x: 0, y: 0 }) => {
+    actorObject.pos.x = newPosition.x;
+    actorObject.pos.y = newPosition.y;
+    actorObject._velocity.x = newVelocity.x;
+    actorObject._velocity.y = newVelocity.y;
   };
 
-  // Start ball gravity
+  /**
+   * Starts ball gravity
+   */
   const startGravity = () => {
-    ao._downwardAcceleration = GRAVITY;
+    actorObject._downwardAcceleration = GRAVITY;
   };
 
-  // Stop ball gravity and velocity
+  /**
+   * Stops ball physics and velocity
+   */
   const stopPhysics = () => {
-    ao._downwardAcceleration = 0;
-    ao._velocity.x = 0;
-    ao._velocity.y = 0;
+    actorObject._downwardAcceleration = 0;
+    actorObject._velocity.x = 0;
+    actorObject._velocity.y = 0;
   };
 
-  // Update ball position each frame
+  /**
+   * Updates ball position each frame
+   */
   const update = () => {
-    ao.update();
+    actorObject.update();
   };
 
-  // Render ball position to DOM
+  /**
+   * Renders ball position to DOM
+   */
   const render = () => {
     if (element) {
       const ballSize = parseInt(element.style.width);
-      element.style.left = `${ao.pos.x - ballSize / 2}px`;
-      element.style.top = `${ao.pos.y - ballSize / 2}px`;
+      element.style.left = `${actorObject.pos.x - ballSize / 2}px`;
+      element.style.top = `${actorObject.pos.y - ballSize / 2}px`;
     }
   };
 
@@ -286,7 +350,7 @@ export function Ball(pos, dimensions, constraints, field, animationsEvent) {
     createElement,
     setElement,
     element,
-    ao,
+    ao: actorObject,
     hitGroundEvent,
     hitNetEvent,
     hitSlimeEvent,

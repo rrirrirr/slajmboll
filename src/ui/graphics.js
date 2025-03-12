@@ -1,7 +1,14 @@
-import { Event } from './events.js';
-import { updatePlayerTeam } from './gameState.js';
+import { Event } from '../core/events.js';
+import { updatePlayerTeam } from '../core/gameState.js';
+import { teams } from '../config.js';
 
-// Create a slime element
+/**
+ * Creates a slime element
+ * 
+ * @param {Object} options - Slime options
+ * @param {string} options.color - Color of the slime
+ * @returns {HTMLElement} Slime DOM element
+ */
 export function createSlime({ color }) {
   const slime = document.createElement('div');
   slime.classList.add('slime');
@@ -9,13 +16,26 @@ export function createSlime({ color }) {
   return slime;
 }
 
-// Clean key display
+/**
+ * Formats key name for display
+ * 
+ * @param {string} key - Key code (e.g. 'ArrowUp')
+ * @returns {string} Cleaned key name (e.g. 'Up')
+ */
 export function cleanKey(key) {
   return key.replace(/Digit|Arrow|Key/, '');
 }
 
-// Create the waiting screen for player setup
-export function waitingScreen(num, team = 0, keys, playerIndex) {
+/**
+ * Creates the waiting screen for player setup
+ * 
+ * @param {number} playerNumber - Player number (1-based)
+ * @param {number} team - Team number (0=none, 1, 2)
+ * @param {Object} keys - Key configuration
+ * @param {number} playerIndex - Player index in the global array
+ * @returns {Object} Screen element and team switch event
+ */
+export function waitingScreen(playerNumber, team = 0, keys, playerIndex) {
   const teamSwitchEvent = Event(`team_switch_player${playerIndex}`);
 
   // Main player container
@@ -27,7 +47,7 @@ export function waitingScreen(num, team = 0, keys, playerIndex) {
   // Player name
   const playerLabel = document.createElement('div');
   playerLabel.classList.add('playerLabel');
-  playerLabel.textContent = `P${num}`;
+  playerLabel.textContent = `P${playerNumber}`;
   container.appendChild(playerLabel);
 
   // Controls with team arrows
@@ -48,49 +68,10 @@ export function waitingScreen(num, team = 0, keys, playerIndex) {
   const keysContainer = document.createElement('div');
   keysContainer.classList.add('keysContainer');
 
-  // Top row (up key)
-  const buttonLineOne = document.createElement('div');
-  buttonLineOne.classList.add('buttonLine');
-
-  // Empty slot for alignment
-  const emptyLeft = document.createElement('div');
-  emptyLeft.classList.add('keySlot');
-
-  const up = document.createElement('button');
-  up.textContent = cleanKey(keys.up);
-  up.classList.add('keyButton');
-
-  // Empty slot for alignment
-  const emptyRight = document.createElement('div');
-  emptyRight.classList.add('keySlot');
-
-  buttonLineOne.appendChild(emptyLeft);
-  buttonLineOne.appendChild(up);
-  buttonLineOne.appendChild(emptyRight);
-
-  // Bottom row (left, down, right keys)
-  const buttonLineTwo = document.createElement('div');
-  buttonLineTwo.classList.add('buttonLine');
-
-  const left = document.createElement('button');
-  left.textContent = cleanKey(keys.left);
-  left.classList.add('keyButton');
-
-  const down = document.createElement('button');
-  down.textContent = cleanKey(keys.down);
-  down.classList.add('keyButton');
-
-  const right = document.createElement('button');
-  right.textContent = cleanKey(keys.right);
-  right.classList.add('keyButton');
-
-  buttonLineTwo.appendChild(left);
-  buttonLineTwo.appendChild(down);
-  buttonLineTwo.appendChild(right);
+  // Create a key layout UI
+  createKeyLayout(keysContainer, keys);
 
   // Build structure
-  keysContainer.appendChild(buttonLineOne);
-  keysContainer.appendChild(buttonLineTwo);
   keysPanelContainer.appendChild(keysContainer);
   controlsContainer.appendChild(keysPanelContainer);
 
@@ -145,9 +126,66 @@ export function waitingScreen(num, team = 0, keys, playerIndex) {
   teamRightSelector.addEventListener('click', () => teamSwitch(2));
 
   return { screen: container, teamSwitchEvent };
+
+  /**
+   * Creates a key layout UI
+   * 
+   * @param {HTMLElement} container - Container for key layout
+   * @param {Object} keyConfig - Key configuration
+   */
+  function createKeyLayout(container, keyConfig) {
+    // Top row (up key)
+    const buttonLineOne = document.createElement('div');
+    buttonLineOne.classList.add('buttonLine');
+
+    // Empty slot for alignment
+    const emptyLeft = document.createElement('div');
+    emptyLeft.classList.add('keySlot');
+
+    const upButton = document.createElement('button');
+    upButton.textContent = cleanKey(keyConfig.up);
+    upButton.classList.add('keyButton');
+
+    // Empty slot for alignment
+    const emptyRight = document.createElement('div');
+    emptyRight.classList.add('keySlot');
+
+    buttonLineOne.appendChild(emptyLeft);
+    buttonLineOne.appendChild(upButton);
+    buttonLineOne.appendChild(emptyRight);
+
+    // Bottom row (left, down, right keys)
+    const buttonLineTwo = document.createElement('div');
+    buttonLineTwo.classList.add('buttonLine');
+
+    const leftButton = document.createElement('button');
+    leftButton.textContent = cleanKey(keyConfig.left);
+    leftButton.classList.add('keyButton');
+
+    const downButton = document.createElement('button');
+    downButton.textContent = cleanKey(keyConfig.down);
+    downButton.classList.add('keyButton');
+
+    const rightButton = document.createElement('button');
+    rightButton.textContent = cleanKey(keyConfig.right);
+    rightButton.classList.add('keyButton');
+
+    buttonLineTwo.appendChild(leftButton);
+    buttonLineTwo.appendChild(downButton);
+    buttonLineTwo.appendChild(rightButton);
+
+    // Add to container
+    container.appendChild(buttonLineOne);
+    container.appendChild(buttonLineTwo);
+  }
 }
 
-// Create the "Add Player" button
+/**
+ * Creates the "Add Player" button
+ * 
+ * @param {Function} callback - Click handler
+ * @returns {HTMLElement} Button element
+ */
 export function createAddPlayerButton(callback) {
   const button = document.createElement('div');
   button.classList.add('addPlayerButton');
@@ -156,7 +194,11 @@ export function createAddPlayerButton(callback) {
   return button;
 }
 
-// Create team headers
+/**
+ * Creates team header elements
+ * 
+ * @returns {HTMLElement} Container with team headers
+ */
 export function createTeamHeaders() {
   const container = document.createElement('div');
   container.classList.add('teamHeadersContainer');
@@ -175,7 +217,12 @@ export function createTeamHeaders() {
   return container;
 }
 
-// Create the start button
+/**
+ * Creates the start button
+ * 
+ * @param {Function} callback - Click handler
+ * @returns {HTMLElement} Button element
+ */
 export function createStartButton(callback) {
   const button = document.createElement('button');
   button.classList.add('startButton');
@@ -184,14 +231,22 @@ export function createStartButton(callback) {
   return button;
 }
 
-// Create the ball element
+/**
+ * Creates the ball element
+ * 
+ * @returns {HTMLElement} Ball element
+ */
 export function createBall() {
   const ball = document.createElement('div');
   ball.classList.add('ball');
   return ball;
 }
 
-// Create a countdown display
+/**
+ * Creates a countdown display
+ * 
+ * @returns {Object} Countdown container and text elements
+ */
 export function createCountdown() {
   const countdownContainer = document.createElement('div');
   countdownContainer.classList.add('countdownContainer');
@@ -205,7 +260,11 @@ export function createCountdown() {
   return { container: countdownContainer, text: countdownText };
 }
 
-// Create a score board
+/**
+ * Creates a score board
+ * 
+ * @returns {Object} Score board elements
+ */
 export function createScoreBoard() {
   const scoreBoard = document.createElement('div');
   scoreBoard.classList.add('scoreBoard');
@@ -233,7 +292,13 @@ export function createScoreBoard() {
   };
 }
 
-// Create game over screen
+/**
+ * Creates game over screen
+ * 
+ * @param {number} winningTeam - Team that won (1 or 2)
+ * @param {Function} onPlayAgain - Click handler for play again button
+ * @returns {HTMLElement} Game over screen element
+ */
 export function createGameOverScreen(winningTeam, onPlayAgain) {
   const gameOverScreen = document.createElement('div');
   gameOverScreen.classList.add('gameOverScreen');
@@ -253,9 +318,56 @@ export function createGameOverScreen(winningTeam, onPlayAgain) {
   return gameOverScreen;
 }
 
-// Create the center wall/net
+/**
+ * Creates the center wall/net
+ * 
+ * @returns {HTMLElement} Wall element
+ */
 export function createWall() {
   const wall = document.createElement('div');
   wall.id = 'wall';
   return wall;
+}
+
+/**
+ * Creates a UI element with text
+ * 
+ * @param {string} elementType - HTML element type (e.g., 'div', 'button')
+ * @param {string} text - Text content
+ * @param {string[]} [classNames=[]] - CSS class names
+ * @param {Object} [attributes={}] - HTML attributes
+ * @returns {HTMLElement} Created element
+ */
+export function createUIElement(elementType, text, classNames = [], attributes = {}) {
+  const element = document.createElement(elementType);
+  element.textContent = text;
+
+  // Add classes
+  classNames.forEach(className => element.classList.add(className));
+
+  // Add attributes
+  Object.entries(attributes).forEach(([key, value]) => {
+    element.setAttribute(key, value);
+  });
+
+  return element;
+}
+
+/**
+ * Applies team styling to an element
+ * 
+ * @param {HTMLElement} element - Element to style
+ * @param {number} teamNumber - Team number (1 or 2)
+ */
+export function applyTeamStyling(element, teamNumber) {
+  // Remove existing team classes
+  element.classList.remove('teamOne', 'teamTwo', 'teamOneText', 'teamTwoText');
+
+  if (teamNumber === 1) {
+    element.classList.add('teamOne');
+    element.classList.add('teamOneText');
+  } else if (teamNumber === 2) {
+    element.classList.add('teamTwo');
+    element.classList.add('teamTwoText');
+  }
 }
