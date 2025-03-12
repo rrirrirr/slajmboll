@@ -1,4 +1,4 @@
-import { responsive } from '.../config.js';
+import { responsive } from '.../../config.js';
 
 /**
  * Current responsive breakpoint
