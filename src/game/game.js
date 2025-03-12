@@ -411,6 +411,9 @@ function Game() {
           // Signal that no countdown is active
           setActiveCountdown(null);
 
+          // Transition to PLAYING state
+          setGameState(GAME_STATES.PLAYING);
+
           // Emit countdown end event
           countdownEndEvent.emit();
 
