@@ -1,4 +1,4 @@
-import { physics } from '.../config.js';
+import { physics } from '../../config.js';
 
 /**
  * @typedef {Object} Position
@@ -209,4 +209,37 @@ export const reflectVelocity = (velocity, normal, restitution) => {
     x: velocity.x - (2 * dot * normal.x) * restitution,
     y: velocity.y - (2 * dot * normal.y) * restitution
   };
+};
+
+/**
+ * Detects collision between a rectangle and a circle
+ * 
+ * @param {Position} rectPos - Center position of the rectangle
+ * @param {number} rectWidth - Width of the rectangle
+ * @param {number} rectHeight - Height of the rectangle
+ * @param {Position} circlePos - Position of the circle
+ * @param {number} circleRadius - Radius of the circle
+ * @returns {boolean} True if collision detected
+ */
+export const rectCircleCollide = (rectPos, rectWidth, rectHeight, circlePos, circleRadius) => {
+  // Calculate rectangle edges
+  const halfWidth = rectWidth / 2;
+  const halfHeight = rectHeight / 2;
+
+  const rectLeft = rectPos.x - halfWidth;
+  const rectRight = rectPos.x + halfWidth;
+  const rectTop = rectPos.y - halfHeight;
+  const rectBottom = rectPos.y + halfHeight;
+
+  // Find closest point on rectangle to circle
+  const closestX = Math.max(rectLeft, Math.min(circlePos.x, rectRight));
+  const closestY = Math.max(rectTop, Math.min(circlePos.y, rectBottom));
+
+  // Calculate distance from closest point to circle center
+  const dx = closestX - circlePos.x;
+  const dy = closestY - circlePos.y;
+
+  const distanceSquared = dx * dx + dy * dy;
+
+  return distanceSquared <= (circleRadius * circleRadius);
 };
