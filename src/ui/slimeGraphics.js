@@ -1,70 +1,105 @@
+import { teams } from '../config.js';
+
+/**
+ * @typedef {Object} SlimeAppearance
+ * @property {string} color - Color of the slime
+ * @property {Object} [decorations] - Optional decorative elements
+ */
+
 /**
  * Creates a slime DOM element with appropriate styling
- * @param {Object} options - Slime appearance options
- * @param {string} options.color - The color of the slime
- * @param {number} options.width - Width of the slime in pixels
- * @param {number} options.height - Height of the slime in pixels
- * @param {string} options.slimeId - Unique identifier for the slime
- * @param {number} options.teamNumber - Team number the slime belongs to
+ * 
+ * @param {SlimeAppearance} appearance - Slime appearance options
  * @returns {HTMLElement} The slime DOM element
  */
-export function createSlimeElement({ color, width, height, slimeId, teamNumber }) {
+export function createSlimeElement(appearance) {
   const slime = document.createElement('div');
   slime.classList.add('slime');
 
-  // Set styling
-  slime.style.backgroundColor = color;
-  slime.style.width = `${width}px`;
-  slime.style.height = `${height}px`;
-
-  // Set identifiers
-  if (slimeId) {
-    slime.setAttribute('data-slime-id', slimeId);
-  }
-
-  if (teamNumber) {
-    slime.classList.add(`slime-${teamNumber}`);
-  }
+  // Set basic styling
+  slime.style.backgroundColor = appearance.color || '#888888';
 
   return slime;
 }
 
 /**
- * Update slime appearance based on team
+ * Sets slime attributes and identifiers
+ * 
+ * @param {HTMLElement} slimeElement - The slime DOM element
+ * @param {Object} options - Configuration options
+ * @param {string} options.slimeId - Unique identifier for the slime
+ * @param {number} options.teamNumber - Team number the slime belongs to
+ * @param {number} options.width - Width of the slime in pixels
+ * @param {number} options.height - Height of the slime in pixels
+ */
+export function configureSlimeElement(slimeElement, options) {
+  const { slimeId, teamNumber, width, height } = options;
+
+  // Set dimensions
+  if (width) slimeElement.style.width = `${width}px`;
+  if (height) slimeElement.style.height = `${height}px`;
+
+  // Set identifiers
+  if (slimeId) {
+    slimeElement.setAttribute('data-slime-id', slimeId);
+  }
+
+  if (teamNumber) {
+    slimeElement.classList.add(`slime-${teamNumber}`);
+  }
+}
+
+/**
+ * Updates slime appearance based on team
+ * 
  * @param {HTMLElement} slimeElement - The slime DOM element
  * @param {number} teamNumber - Team number (1 or 2)
+ * @returns {string} The team color
  */
 export function updateSlimeTeamAppearance(slimeElement, teamNumber) {
   // Remove existing team classes
   slimeElement.classList.remove('teamColorOne', 'teamColorTwo');
 
+  let teamColor = '#888888';
+
   if (teamNumber === 1) {
     slimeElement.classList.add('teamColorOne');
+    teamColor = teams.TEAM_1_COLOR;
+    slimeElement.style.backgroundColor = teamColor;
   } else if (teamNumber === 2) {
     slimeElement.classList.add('teamColorTwo');
+    teamColor = teams.TEAM_2_COLOR;
+    slimeElement.style.backgroundColor = teamColor;
+  }
+
+  return teamColor;
+}
+
+/**
+ * Applies animation effects to the slime element
+ * 
+ * @param {HTMLElement} slimeElement - The slime DOM element
+ * @param {Object} velocity - Current velocity of the slime
+ */
+export function applySlimeAnimationEffects(slimeElement, velocity) {
+  // Squash and stretch effect based on horizontal velocity
+  const horizontalEffect = velocity.x * 2;
+
+  slimeElement.style.borderTopLeftRadius = `${70 + horizontalEffect}px`;
+  slimeElement.style.borderTopRightRadius = `${70 - horizontalEffect}px`;
+
+  // Height adjustment based on horizontal speed (squash effect)
+  const baseHeight = parseInt(slimeElement.style.height);
+  const heightReduction = Math.abs(velocity.x * 1);
+
+  if (!isNaN(baseHeight)) {
+    slimeElement.style.height = `${baseHeight - heightReduction}px`;
   }
 }
 
 /**
- * Apply animation effects to the slime element
- * @param {HTMLElement} slimeElement - The slime DOM element
- * @param {Object} velocity - Current velocity of the slime
- * @param {Object} options - Animation options
- */
-export function applySlimeAnimationEffects(slimeElement, velocity, options = {}) {
-  // Squash and stretch effect based on horizontal velocity
-  slimeElement.style.borderTopLeftRadius = `${70 + velocity.x * 2}px`;
-  slimeElement.style.borderTopRightRadius = `${70 - velocity.x * 2}px`;
-
-  // Height adjustment based on horizontal speed (squash effect)
-  const heightReduction = Math.abs(velocity.x * 1);
-  const baseHeight = parseInt(slimeElement.style.height);
-
-  slimeElement.style.height = `${baseHeight - heightReduction}px`;
-}
-
-/**
- * Render slime position and appearance
+ * Renders slime position and appearance
+ * 
  * @param {HTMLElement} slimeElement - The slime DOM element
  * @param {Object} position - Position {x, y} of the slime
  * @param {Object} velocity - Velocity {x, y} of the slime
@@ -81,6 +116,44 @@ export function renderSlime(slimeElement, position, velocity, width, height) {
   slimeElement.style.top = `${position.y - height + heightReduction}px`;
 
   // Apply deformation effect
-  slimeElement.style.borderTopLeftRadius = `${70 + velocity.x * 2}px`;
-  slimeElement.style.borderTopRightRadius = `${70 - velocity.x * 2}px`;
+  applySlimeAnimationEffects(slimeElement, velocity);
+}
+
+/**
+ * Creates an effect when slime performs a special move
+ * 
+ * @param {HTMLElement} slimeElement - The slime DOM element
+ * @param {string} effectType - Type of effect ('jump', 'wallJump', 'directionChange')
+ * @param {string} baseColor - Base color of the slime
+ */
+export function createSlimeEffect(slimeElement, effectType, baseColor) {
+  switch (effectType) {
+    case 'jump':
+      // Jump flash effect
+      slimeElement.style.background = `radial-gradient(circle, white 0%, ${baseColor} 70%)`;
+      setTimeout(() => {
+        slimeElement.style.background = baseColor;
+      }, 150);
+      break;
+
+    case 'wallJump':
+      // Wall jump streak effect
+      slimeElement.style.background = `linear-gradient(90deg, white 0%, ${baseColor} 60%)`;
+      setTimeout(() => {
+        slimeElement.style.background = baseColor;
+      }, 150);
+      break;
+
+    case 'directionChange':
+      // Direction change pulse effect
+      slimeElement.style.background = `linear-gradient(0deg, ${baseColor} 50%, white 65%, ${baseColor} 80%)`;
+      setTimeout(() => {
+        slimeElement.style.background = baseColor;
+      }, 150);
+      break;
+
+    default:
+      // Reset to default
+      slimeElement.style.background = baseColor;
+  }
 }

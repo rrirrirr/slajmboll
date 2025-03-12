@@ -1,15 +1,54 @@
 import { Event } from './events.js';
+import { teams } from '.../config.js';
 
-// Key mapping storage
+/**
+ * @typedef {Object} KeyConfig
+ * @property {string} up - Key code for up/jump
+ * @property {string} right - Key code for right movement
+ * @property {string} down - Key code for down/duck
+ * @property {string} left - Key code for left movement
+ */
+
+/**
+ * @typedef {Object} PlayerEvents
+ * @property {Object} movementPress - Event for movement key press
+ * @property {Object} movementRelease - Event for movement key release
+ * @property {Object} jumpPress - Event for jump key press
+ * @property {Object} jumpRelease - Event for jump key release
+ * @property {Object} duckPress - Event for duck key press
+ * @property {Object} duckRelease - Event for duck key release
+ * @property {number} playerIndex - Player index
+ */
+
+/**
+ * Storage for key actions
+ * @type {Map<string, Object>}
+ */
 const keyMappings = new Map();
+
+/**
+ * Player key configurations
+ * @type {Array<KeyConfig>}
+ */
 const playerKeyConfigs = [];
+
+/**
+ * Flag indicating we're in key binding mode
+ * @type {boolean}
+ */
 let isListeningForKey = false;
 
-// Create key events
+/**
+ * Events for key actions
+ */
 export const keyDownEvent = Event('key_down');
 export const keyUpEvent = Event('key_up');
 
-// Handle key events
+/**
+ * Handles keydown events
+ * 
+ * @param {KeyboardEvent} event - Keyboard event
+ */
 const handleKeyDown = (event) => {
   const { code } = event;
 
@@ -25,6 +64,11 @@ const handleKeyDown = (event) => {
   }
 };
 
+/**
+ * Handles keyup events
+ * 
+ * @param {KeyboardEvent} event - Keyboard event
+ */
 const handleKeyUp = (event) => {
   const { code } = event;
 
@@ -40,7 +84,13 @@ const handleKeyUp = (event) => {
   }
 };
 
-// Setup keys for a player
+/**
+ * Sets up key handlers for a player
+ * 
+ * @param {KeyConfig} config - Key configuration
+ * @param {number} playerIndex - Player index
+ * @returns {PlayerEvents} Player-specific events
+ */
 export const setupPlayerKeys = (config, playerIndex) => {
   const { up, right, down, left } = config;
 
@@ -96,12 +146,21 @@ export const setupPlayerKeys = (config, playerIndex) => {
   };
 };
 
-// Map a key to actions
+/**
+ * Maps a key to actions
+ * 
+ * @param {string} keyCode - Key code to map
+ * @param {Object} actions - Actions for the key
+ */
 const mapKey = (keyCode, actions) => {
   keyMappings.set(keyCode, actions);
 };
 
-// Clear mappings for a player
+/**
+ * Clears key mappings for a player
+ * 
+ * @param {number} playerIndex - Index of player to clear mappings for
+ */
 const clearPlayerKeys = (playerIndex) => {
   [...keyMappings.entries()].forEach(([key, actions]) => {
     if (actions.playerIndex === playerIndex) {
@@ -110,7 +169,11 @@ const clearPlayerKeys = (playerIndex) => {
   });
 };
 
-// Initialize default key configurations
+/**
+ * Initializes default key configurations
+ * 
+ * @returns {Array<KeyConfig>} Array of key configurations
+ */
 export const initializeKeyConfigs = () => {
   // Default key mappings for 4 players
   const defaultConfigs = [
@@ -153,7 +216,12 @@ export const initializeKeyConfigs = () => {
   return playerKeyConfigs;
 };
 
-// Get key configuration for a player
+/**
+ * Gets key configuration for a player
+ * 
+ * @param {number} playerIndex - Player index
+ * @returns {KeyConfig} Key configuration
+ */
 export const getPlayerKeyConfig = (playerIndex) => {
   if (playerIndex < playerKeyConfigs.length) {
     return playerKeyConfigs[playerIndex];
@@ -161,7 +229,14 @@ export const getPlayerKeyConfig = (playerIndex) => {
   return playerKeyConfigs[0]; // Fallback to first config
 };
 
-// Update a key configuration
+/**
+ * Updates a key in player's configuration
+ * 
+ * @param {number} playerIndex - Player index
+ * @param {string} keyType - Key type ('up', 'down', 'left', 'right')
+ * @param {string} keyCode - New key code
+ * @returns {boolean} True if update was successful
+ */
 export const updatePlayerKey = (playerIndex, keyType, keyCode) => {
   if (playerIndex < playerKeyConfigs.length) {
     playerKeyConfigs[playerIndex][keyType] = keyCode;
@@ -170,7 +245,9 @@ export const updatePlayerKey = (playerIndex, keyType, keyCode) => {
   return false;
 };
 
-// Enter key binding mode
+/**
+ * Enters key binding mode
+ */
 export const startKeyBindingMode = () => {
   isListeningForKey = true;
 
@@ -179,7 +256,9 @@ export const startKeyBindingMode = () => {
   document.removeEventListener('keyup', handleKeyUp);
 };
 
-// Exit key binding mode
+/**
+ * Exits key binding mode
+ */
 export const endKeyBindingMode = () => {
   isListeningForKey = false;
 
@@ -187,7 +266,9 @@ export const endKeyBindingMode = () => {
   activateKeyListeners();
 };
 
-// Activate key event listeners
+/**
+ * Activates key event listeners
+ */
 export const activateKeyListeners = () => {
   document.removeEventListener('keydown', handleKeyDown);
   document.removeEventListener('keyup', handleKeyUp);
@@ -195,7 +276,47 @@ export const activateKeyListeners = () => {
   document.addEventListener('keyup', handleKeyUp);
 };
 
-// Format key name for display
+/**
+ * Formats key name for display
+ * 
+ * @param {string} key - Key code
+ * @returns {string} Formatted key name
+ */
 export const formatKeyName = (key) => {
   return key.replace(/Digit|Arrow|Key/, '');
 };
+
+/**
+ * Listens for a key press and calls callback with pressed key
+ * 
+ * @param {Function} callback - Function called with pressed key code
+ */
+export const listenForKeyPress = (callback) => {
+  startKeyBindingMode();
+
+  const keyDownHandler = (event) => {
+    event.preventDefault();
+
+    // Clean up
+    document.removeEventListener('keydown', keyDownHandler);
+    endKeyBindingMode();
+
+    // Call callback with the key
+    if (typeof callback === 'function') {
+      callback(event.code);
+    }
+  };
+
+  document.addEventListener('keydown', keyDownHandler);
+};
+
+/**
+ * Gets all key mappings
+ * 
+ * @returns {Map} Map of key mappings
+ */
+export const getAllKeyMappings = () => {
+  return new Map(keyMappings);
+};
+
+export { handleKeyDown, handleKeyUp };
