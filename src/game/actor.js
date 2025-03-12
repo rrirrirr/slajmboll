@@ -1,4 +1,5 @@
 import { Event } from '../core/events.js';
+import { physics } from '../../config.js';
 
 /**
  * @typedef {Object} Position
@@ -54,6 +55,10 @@ import { Event } from '../core/events.js';
  * @param {number} [team=0] - Team identifier (0=none, 1=left, 2=right)
  * @returns {ActorObject} Actor object with physics and movement methods
  */
+
+const K = physics.K;
+const TERMINALVELOCITY = physics.TERMINAL_VELOCITY;
+
 export default function Actor(
   pos,
   velocity,

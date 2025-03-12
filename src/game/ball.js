@@ -1,6 +1,6 @@
 import { Event } from '../core/events.js';
 import Actor from './actor.js';
-import { Animation } from '../utils/animations.js';
+import { Animation, animationsEvent } from '../utils/animations.js';
 import { physics } from '../../config.js';
 
 /**
@@ -309,7 +309,7 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
    * Starts ball gravity
    */
   const startGravity = () => {
-    actorObject._downwardAcceleration = GRAVITY;
+    actorObject._downwardAcceleration = physics.GRAVITY;
   };
 
   /**
