@@ -1,66 +1,115 @@
-import { Slime } from './slime.js';
-import { Ball } from './ball.js';
+// /src/slimevolley.js
+import { Slime } from './game/slime.js';
+import { Ball } from './game/ball.js';
 import { GRAVITY } from './constants.js';
+import { physics, rules } from './config.js';
 import {
-  playerKeys,
   handleKeyDown,
   handleKeyUp,
-  initKeys,
-  setupKeys,
-} from './keys.js';
-import { Game, WaitingGame } from './game.js';
-import { Event, events } from './events.js';
-import Actor from './actor.js';
+  initializeKeyConfigs,
+  setupPlayerKeys,
+} from './core/inputManager.js';
+import { Game, WaitingGame } from './game/game.js';
+import { Event, events } from './core/events.js';
+import Actor from './game/actor.js';
 import {
   createAddPlayerButton,
   createTeamHeaders,
   createWall,
   createBall,
   createScoreBoard
-} from './graphics.js';
+} from './ui/graphics.js';
 
 // Import game state management
 import {
   gameState,
-  gameStateChangeEvent,
+  GAME_STATES,
+  stateChangeEvent,
+  teamChangeEvent,
   addPlayer,
   updatePlayerTeam,
   canStartGame,
   setGamePlaying,
   setGameSetup,
   resetGameState
-} from './gameState.js';
-
-import {
-  GAME_STATE,
-  currentGameState,
-  setGameState,
-  roundStartEvent,
-  roundEndEvent,
-  countdownStartEvent,
-  countdownEndEvent,
-  activeCountdown
-} from './gameStateManager.js';
+} from './core/gameState.js';
 
 // Import start button functionality
 import {
   createAndAddStartButton,
   updateStartButtonVisibility
-} from './startButton.js';
+} from './ui/startButton.js';
 
-// Initialize global variables
-const area = document.querySelector('#main');
+/**
+ * Main game controller and initialization
+ * @module slimevolley
+ */
+
+/**
+ * Main game container
+ * @type {HTMLElement}
+ */
+const gameContainer = document.querySelector('#main');
+
+/**
+ * Delayed actions queue
+ * @type {Array}
+ */
 let delayedActions = [];
+
+/**
+ * Animation queue
+ * @type {Array}
+ */
 let animations = [];
+
+/**
+ * Event for delayed actions
+ * @type {Object}
+ */
 const delayedActionsEvent = Event('delayed actions');
+
+/**
+ * Event for animations
+ * @type {Object}
+ */
 const animationEvent = Event('animations');
 
+/**
+ * Field dimensions
+ * @type {Object}
+ */
 const field = { width: 0, height: 0 };
+
+/**
+ * Slime entities
+ * @type {Array}
+ */
 let slimes = [];
+
+/**
+ * Ball entity
+ * @type {Object|null}
+ */
 let ball = null;
+
+/**
+ * Game controller instance
+ * @type {Object|null}
+ */
 let gameInstance = null;
+
+/**
+ * Timestamp of last scoring event
+ * @type {number}
+ */
 let lastScoringTime = 0;
-const SCORING_COOLDOWN = 2000; // 2 seconds cooldown between scoring events
+
+/**
+ * Cooldown between scoring events (ms)
+ * @type {number}
+ */
+const SCORING_COOLDOWN = rules.SCORING_COOLDOWN;
 
 // Subscribe to event handlers
 delayedActionsEvent.subscribe((action) => {
@@ -71,37 +120,63 @@ animationEvent.subscribe((animation) => {
   animations.push(animation);
 });
 
-// Array to hold player data
+/**
+ * Player data array
+ * @type {Array}
+ */
 const players = [];
+
+/**
+ * Reference to players area container
+ * @type {HTMLElement|null}
+ */
 let playersArea = null;
+
+/**
+ * Reference to start button
+ * @type {HTMLElement|null}
+ */
 let startButton = null;
+
+/**
+ * Reference to score board
+ * @type {HTMLElement|null}
+ */
 let scoreBoard = null;
 
-// Set up event listeners
+/**
+ * Set up key event listeners
+ */
 const startEventListeners = () => {
   document.addEventListener('keyup', handleKeyUp);
   document.addEventListener('keydown', handleKeyDown);
 };
 
-// Listen for "B" key to add players during setup
-const addPlayerListen = ({ code }) => {
+/**
+ * Key handler for adding players during setup
+ * 
+ * @param {KeyboardEvent} event - Key event
+ */
+const addPlayerKeyHandler = ({ code }) => {
   if (code === 'KeyB') {
     addPlayerToGame();
   }
 };
 
-// Function to add a player to the game
+/**
+ * Adds a player to the game
+ */
 const addPlayerToGame = () => {
   // Limit to 4 players total (2 per team)
-  if (players.length >= 4) return;
+  if (players.length >= rules.MAX_PLAYERS) return;
 
   const playerIndex = players.length;
 
   // Get the next available player keys
-  const playerKeySet = playerKeys[playerIndex] || playerKeys[0]; // Fallback to first key set if we run out
+  const playerKeyConfig = initializedKeyConfigs[playerIndex] || initializedKeyConfigs[0]; // Fallback to first key set if we run out
 
   // Setup player keys and event handlers with player index
-  const keyHandlers = setupKeys(playerKeySet, playerIndex);
+  const keyHandlers = setupPlayerKeys(playerKeyConfig, playerIndex);
 
   // Create player object
   const playerData = {
@@ -122,19 +197,19 @@ const addPlayerToGame = () => {
   const waitingGame = WaitingGame(
     players.length,
     0, // No team initially
-    playerKeySet,
+    playerKeyConfig,
     playerIndex // Pass player index
   );
 
   // Calculate center position
-  const centerX = (waitingGame.rightBoundry + waitingGame.leftBoundry) / 2;
+  const centerX = (waitingGame.rightBoundary + waitingGame.leftBoundary) / 2;
 
   // Define the constraints for the slime
   const constraints = {
-    rightBoundry: waitingGame.rightBoundry,
-    leftBoundry: waitingGame.leftBoundry,
+    rightBoundry: waitingGame.rightBoundary,
+    leftBoundry: waitingGame.leftBoundary,
     ground: waitingGame.ground,
-    maxVelocity: 10 // Adding missing maxVelocity parameter
+    maxVelocity: physics.MAX_VELOCITY
   };
 
   // Create the slime instance with proper positioning and player index
@@ -176,7 +251,9 @@ const addPlayerToGame = () => {
   updateStartButtonVisibility();
 };
 
-// Function to start the game when start button is clicked
+/**
+ * Starts the game when start button is clicked
+ */
 const startGame = () => {
   if (!canStartGame()) return;
 
@@ -187,12 +264,12 @@ const startGame = () => {
   setGameSetup(false);
 
   // Remove key listener for adding players
-  document.removeEventListener('keydown', addPlayerListen);
+  document.removeEventListener('keydown', addPlayerKeyHandler);
 
   // Hide setup UI elements
   const setupElements = document.querySelectorAll('.teamHeadersContainer, .addPlayerButton');
-  setupElements.forEach(el => {
-    el.style.display = 'none';
+  setupElements.forEach(element => {
+    element.style.display = 'none';
   });
 
   // Hide player containers but keep slimes
@@ -205,28 +282,30 @@ const startGame = () => {
   initGame();
 };
 
-// Initialize the game for gameplay
+/**
+ * Initializes the game for gameplay
+ */
 const initGame = () => {
   // Update field dimensions
-  const rect = area.getBoundingClientRect();
+  const rect = gameContainer.getBoundingClientRect();
   field.width = rect.width;
   field.height = rect.height;
 
   // Create score board
   const scoreBoardElements = createScoreBoard();
   scoreBoard = scoreBoardElements.container;
-  area.appendChild(scoreBoard);
+  gameContainer.appendChild(scoreBoard);
 
   // Create center wall/net
   const wall = createWall();
-  area.appendChild(wall);
+  gameContainer.appendChild(wall);
 
   // Calculate ground position (where slimes stand)
   const groundPosition = field.height - 40; // 40px from bottom
 
   // Create ball DOM element
   const ballElement = createBall();
-  area.appendChild(ballElement);
+  gameContainer.appendChild(ballElement);
 
   // Set ball size
   const ballSize = 40; // px
@@ -287,7 +366,11 @@ const initGame = () => {
   gameInstance.newRound(servingTeam);
 };
 
-// Handle ball-slime collisions
+/**
+ * Handles ball-slime collisions
+ * 
+ * @param {Object} data - Collision data
+ */
 const handleBallSlimeCollision = (data) => {
   console.log(`Ball hit slime ${data.slimeId} on team ${data.teamNumber}`);
 
@@ -295,8 +378,21 @@ const handleBallSlimeCollision = (data) => {
   // For example, play a sound, add a visual effect, etc.
 };
 
-// Handle scoring
+/**
+ * Handles scoring
+ * 
+ * @param {Object} data - Scoring data
+ */
 const handleScore = (data) => {
+  const currentTime = Date.now();
+
+  // Prevent multiple scoring events too close together
+  if (currentTime - lastScoringTime < SCORING_COOLDOWN) {
+    console.log("Scoring too soon after last score, ignoring");
+    return;
+  }
+
+  lastScoringTime = currentTime;
   console.log(`Team ${data.scoringSide} scored!`);
 
   // End the round in the game with the scoring team
@@ -305,36 +401,38 @@ const handleScore = (data) => {
   }
 };
 
-// Initialize the start screen
+/**
+ * Initializes the start screen
+ */
 const initStartScreen = () => {
   // Reset game state
   resetGameState();
 
   // Set up event listeners
-  document.addEventListener('keydown', addPlayerListen);
+  document.addEventListener('keydown', addPlayerKeyHandler);
   startEventListeners();
-  initKeys();
+  const initializedKeyConfigs = initializeKeyConfigs();
 
   // Clear the main area
-  while (area.firstChild) {
-    area.removeChild(area.firstChild);
+  while (gameContainer.firstChild) {
+    gameContainer.removeChild(gameContainer.firstChild);
   }
 
   // Add team headers
   const teamHeaders = createTeamHeaders();
-  area.appendChild(teamHeaders);
+  gameContainer.appendChild(teamHeaders);
 
   // Create players area
   playersArea = document.createElement('div');
   playersArea.classList.add('playersArea');
-  area.appendChild(playersArea);
+  gameContainer.appendChild(playersArea);
 
   // Create and add start button (initially hidden)
-  startButton = createAndAddStartButton(area, startGame);
+  startButton = createAndAddStartButton(gameContainer, startGame);
 
   // Add "Add Player" button
   const addPlayerBtn = createAddPlayerButton(addPlayerToGame);
-  area.appendChild(addPlayerBtn);
+  gameContainer.appendChild(addPlayerBtn);
 
   // Add the first player
   if (players.length === 0) {
@@ -342,7 +440,9 @@ const initStartScreen = () => {
   }
 };
 
-// Update function for the game loop
+/**
+ * Updates game state for one frame
+ */
 function update() {
   // Process delayed actions
   delayedActions = delayedActions.filter((action) => {
@@ -363,7 +463,7 @@ function update() {
   slimes.forEach((slime) => slime.update());
 
   // Only update ball physics and check scoring during PLAYING state
-  if (currentGameState === GAME_STATE.PLAYING && ball && typeof ball.update === 'function') {
+  if (gameState.currentState === GAME_STATES.PLAYING && ball && typeof ball.update === 'function') {
     ball.update();
 
     // Check for scoring condition
@@ -378,17 +478,15 @@ function update() {
       console.log(`Ball triggered scoring for team ${scoringSide}`);
 
       // Change state to prevent multiple scoring events
-      setGameState(GAME_STATE.SCORING);
-
-      // Emit round end event with scoring team
-      roundEndEvent.emit(scoringSide);
+      setGameState(GAME_STATES.SCORING);
 
       // End the round with the scoring team
       if (gameInstance) {
         gameInstance.endRound(scoringSide);
       }
     }
-  } else if (currentGameState === GAME_STATE.SCORING || currentGameState === GAME_STATE.COUNTDOWN) {
+  } else if (gameState.currentState === GAME_STATES.SCORING ||
+    gameState.currentState === GAME_STATES.COUNTDOWN) {
     // Still render the ball position during non-playing states
     if (ball && typeof ball.render === 'function') {
       ball.render();
@@ -396,7 +494,9 @@ function update() {
   }
 }
 
-// Render function for the game loop
+/**
+ * Renders game elements
+ */
 function render() {
   // Render slimes
   slimes.forEach((slime) => slime.render());
@@ -407,7 +507,9 @@ function render() {
   }
 }
 
-// Game loop
+/**
+ * Game loop
+ */
 function gameLoop() {
   // Update game state
   update();
@@ -419,8 +521,12 @@ function gameLoop() {
   window.requestAnimationFrame(gameLoop);
 }
 
-// Handle game state changes
-gameStateChangeEvent.subscribe((data) => {
+/**
+ * Handles game state changes
+ * 
+ * @param {Object} data - State change data
+ */
+stateChangeEvent.subscribe((data) => {
   if (data.type === 'playing_change') {
     console.log('Game playing state changed:', data.value);
   }
