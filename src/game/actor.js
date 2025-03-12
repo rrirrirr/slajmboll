@@ -2,14 +2,50 @@ import { Event } from '../core/events.js';
 import { MAXVELOCITY, TERMINALVELOCITY, K } from '../constants.js';
 
 /**
+ * @typedef {Object} Position
+ * @property {number} x - X coordinate
+ * @property {number} y - Y coordinate
+ */
+
+/**
+ * @typedef {Object} Velocity
+ * @property {number} x - Horizontal velocity
+ * @property {number} y - Vertical velocity
+ */
+
+/**
+ * @typedef {Object} ActorEvents
+ * @property {Object} groundHit - Event emitted when actor hits ground
+ * @property {Object} wallHit - Event emitted when actor hits wall
+ * @property {Object} netHit - Event emitted when actor hits net
+ */
+
+/**
+ * @typedef {Object} ActorObject
+ * @property {Function} addMovement - Add a movement generator
+ * @property {Function} removeMovement - Remove a movement generator
+ * @property {Function} update - Update physics for one frame
+ * @property {Object} groundHitEvent - Ground collision event
+ * @property {Object} wallHitEvent - Wall collision event
+ * @property {Object} netHitEvent - Net collision event
+ * @property {Position} pos - Current position
+ * @property {Function} setMaxVelocity - Set maximum velocity
+ * @property {Function} resetMaxVelocity - Reset to default velocity
+ * @property {Function} updateTeam - Update team and boundaries
+ * @property {Velocity} _velocity - Current velocity
+ * @property {Function} getSpeed - Get current horizontal speed
+ * @property {number} _downwardAcceleration - Current gravity
+ * @property {number} jumpAcceleration - Jump strength
+ * @property {number} ground - Ground level
+ * @property {number} realRadius - Actual collision radius
+ * @property {number} team - Team identifier
+ */
+
+/**
  * Creates a physics actor for game entities
  * 
- * @param {Object} pos - Initial position
- * @param {number} pos.x - X-coordinate
- * @param {number} pos.y - Y-coordinate
- * @param {Object} velocity - Initial velocity
- * @param {number} velocity.x - Horizontal velocity
- * @param {number} velocity.y - Vertical velocity
+ * @param {Position} pos - Initial position
+ * @param {Velocity} velocity - Initial velocity
  * @param {number} radius - Collision radius (relative size)
  * @param {number} rightBoundary - Right boundary of movement area
  * @param {number} leftBoundary - Left boundary of movement area
@@ -32,13 +68,13 @@ export default function Actor(
 ) {
   /**
    * The actor's position
-   * @type {Object}
+   * @type {Position}
    */
   const position = pos || { x: 0, y: 0 };
 
   /**
    * The actor's velocity
-   * @type {Object}
+   * @type {Velocity}
    */
   const actorVelocity = velocity || { x: 0, y: 0 };
 
@@ -84,9 +120,6 @@ export default function Actor(
   // Boundaries adjusted based on team
   let effectiveLeftBoundary = leftLimit;
   let effectiveRightBoundary = rightLimit;
-
-  // Set team-specific boundaries
-  updateTeamBoundaries();
 
   /**
    * Ground y-coordinate
@@ -160,7 +193,7 @@ export default function Actor(
 
   /**
    * Handle collision with the ground
-   * @param {Object} nextPos - Next calculated position
+   * @param {Position} nextPos - Next calculated position
    * @param {boolean} wasGrounded - Whether actor was on ground in previous frame
    */
   function handleGroundCollision(nextPos, wasGrounded) {
@@ -176,7 +209,7 @@ export default function Actor(
 
   /**
    * Handle collisions with boundaries and walls
-   * @param {Object} nextPos - Next calculated position
+   * @param {Position} nextPos - Next calculated position
    */
   function handleBoundaryCollisions(nextPos) {
     // Left boundary collision
@@ -210,16 +243,7 @@ export default function Actor(
   }
 
   /**
-   * Update the actor's team and adjust boundaries
-   * @param {number} newTeam - New team ID (0=none, 1=left, 2=right)
-   */
-  function updateTeam(newTeam) {
-    teamId = newTeam;
-    updateTeamBoundaries();
-  }
-
-  /**
-   * Update boundaries based on the actor's team
+   * Update team boundaries based on the actor's team
    */
   function updateTeamBoundaries() {
     if (teamId === 1) { // Team 1 (left side)
@@ -233,6 +257,18 @@ export default function Actor(
       effectiveLeftBoundary = leftLimit;
       effectiveRightBoundary = rightLimit;
     }
+  }
+
+  // Initialize team boundaries
+  updateTeamBoundaries();
+
+  /**
+   * Update the actor's team and adjust boundaries
+   * @param {number} newTeam - New team ID (0=none, 1=left, 2=right)
+   */
+  function updateTeam(newTeam) {
+    teamId = newTeam;
+    updateTeamBoundaries();
   }
 
   /**

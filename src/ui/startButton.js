@@ -1,15 +1,24 @@
 import {
   gameState,
-  gameStateChangeEvent,
+  stateChangeEvent,
   teamChangeEvent,
   canStartGame,
   setGamePlaying
-} from './gameState.js';
+} from '../core/gameState.js';
 
-// Reference to the start button DOM element
+/**
+ * Reference to the start button DOM element
+ * @type {HTMLElement|null}
+ */
 let startButtonElement = null;
 
-// Create the start button and add to container
+/**
+ * Creates and adds a start button to the container
+ * 
+ * @param {HTMLElement} container - DOM element to add button to
+ * @param {Function} onStartGame - Callback when game starts
+ * @returns {HTMLElement} The created button element
+ */
 function createAndAddStartButton(container, onStartGame) {
   // Create the button element
   startButtonElement = document.createElement('button');
@@ -32,7 +41,7 @@ function createAndAddStartButton(container, onStartGame) {
 
   // Subscribe to events to update visibility
   teamChangeEvent.subscribe(updateStartButtonVisibility);
-  gameStateChangeEvent.subscribe(handleGameStateChange);
+  stateChangeEvent.subscribe(handleGameStateChange);
 
   // Initial check
   updateStartButtonVisibility();
@@ -40,39 +49,49 @@ function createAndAddStartButton(container, onStartGame) {
   return startButtonElement;
 }
 
-// Update the visibility of the start button
+/**
+ * Updates the visibility of the start button based on game state
+ */
 function updateStartButtonVisibility() {
   if (!startButtonElement) return;
 
   const shouldShow = canStartGame() && !gameState.isPlaying;
 
-  if (shouldShow) {
-    startButtonElement.style.display = 'block';
-  } else {
-    startButtonElement.style.display = 'none';
-  }
+  startButtonElement.style.display = shouldShow ? 'block' : 'none';
 }
 
-// Handle game state changes
+/**
+ * Handles game state change events
+ * 
+ * @param {Object} data - Event data
+ */
 function handleGameStateChange(data) {
   if (data.type === 'playing_change' || data.type === 'reset') {
     updateStartButtonVisibility();
   }
 }
 
-// Get the start button element
+/**
+ * Gets the start button element
+ * 
+ * @returns {HTMLElement|null} The start button element or null
+ */
 function getStartButton() {
   return startButtonElement;
 }
 
-// Hide the start button
+/**
+ * Hides the start button
+ */
 function hideStartButton() {
   if (startButtonElement) {
     startButtonElement.style.display = 'none';
   }
 }
 
-// Show the start button (if conditions are met)
+/**
+ * Shows the start button if conditions are met
+ */
 function showStartButton() {
   updateStartButtonVisibility();
 }

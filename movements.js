@@ -1,23 +1,60 @@
-function Movement(move) {
-  let _ended = false
+/**
+ * @typedef {Object} MovementResult
+ * @property {number} x - Horizontal movement contribution
+ * @property {number} y - Vertical movement contribution
+ */
+
+/**
+ * @typedef {Object} MovementObject
+ * @property {Function} next - Get next movement update
+ * @property {Function} ended - Check if movement has ended
+ */
+
+/**
+ * Creates a movement object with next and ended methods
+ * 
+ * @param {Function} movementFn - Generator function that produces movement
+ * @returns {MovementObject} Movement object
+ */
+function Movement(movementFn) {
+  let hasEnded = false;
+
+  /**
+   * Get the next movement update
+   * @returns {MovementResult|boolean} Movement values or false if ended
+   */
   const next = () => {
     try {
-      const result = move()
+      const result = movementFn();
       if (result === false || result.x === false || result.y === false) {
-        _ended = true
-        return { x: 0, y: 0 }
+        hasEnded = true;
+        return { x: 0, y: 0 };
       }
-      return result
+      return result;
     } catch (error) {
-      console.error("Error in movement:", error)
-      _ended = true
-      return { x: 0, y: 0 }
+      console.error("Error in movement:", error);
+      hasEnded = true;
+      return { x: 0, y: 0 };
     }
-  }
-  const ended = () => _ended
-  return { next, ended }
+  };
+
+  /**
+   * Check if the movement has ended
+   * @returns {boolean} True if movement has ended
+   */
+  const ended = () => hasEnded;
+
+  return { next, ended };
 }
 
+/**
+ * Create a jumping movement
+ * 
+ * @param {number} acceleration - Jump acceleration
+ * @param {Function} killSignal - Function that returns true when jump should end
+ * @param {Function} [end] - Callback when jump ends
+ * @returns {MovementObject} Jumping movement
+ */
 export const startJump = (acceleration, killSignal, end) => {
   const jumpPower = acceleration * 10;
 
@@ -25,7 +62,7 @@ export const startJump = (acceleration, killSignal, end) => {
   const maxFrames = 20;
   const minFrames = 6;
 
-  const fm = frameMovement(
+  const frameMovement = frameMovement(
     maxFrames,
     (frame) => {
       frameCount++;
@@ -41,11 +78,20 @@ export const startJump = (acceleration, killSignal, end) => {
   );
 
   return Movement(() => {
-    const yValue = fm.next().value;
+    const yValue = frameMovement.next().value;
     return { x: 0, y: yValue };
   });
 };
 
+/**
+ * Create a wall jumping movement
+ * 
+ * @param {number} acceleration - Jump acceleration
+ * @param {number} direction - Direction (-1 for left, 1 for right)
+ * @param {Function} killSignal - Function that returns true when jump should end
+ * @param {Function} [end] - Callback when jump ends
+ * @returns {MovementObject} Wall jump movement
+ */
 export const startWallJump = (
   acceleration,
   direction,
@@ -77,6 +123,15 @@ export const startWallJump = (
   });
 };
 
+/**
+ * Create a direction change jump movement
+ * 
+ * @param {number} acceleration - Jump acceleration
+ * @param {number} direction - Direction (-1 for left, 1 for right)
+ * @param {Function} killSignal - Function that returns true when jump should end
+ * @param {Function} [end] - Callback when jump ends
+ * @returns {MovementObject} Direction change jump movement
+ */
 export const startDirectionChangeJump = (acceleration, direction, killSignal, end = () => { }) => {
   const jumpPower = acceleration * 9.6;
 
@@ -99,7 +154,14 @@ export const startDirectionChangeJump = (acceleration, direction, killSignal, en
   });
 };
 
-// Standard run function
+/**
+ * Create a standard run movement
+ * 
+ * @param {number} acceleration - Run acceleration
+ * @param {number} direction - Direction (-1 for left, 1 for right)
+ * @param {Function} killSignal - Function that returns true when run should end
+ * @returns {MovementObject} Running movement
+ */
 export const startRun = (acceleration, direction, killSignal) => {
   return Movement(() => {
     if (killSignal()) {
@@ -109,6 +171,15 @@ export const startRun = (acceleration, direction, killSignal) => {
   });
 };
 
+/**
+ * Create a run movement in the opposite direction (for bonus acceleration)
+ * 
+ * @param {number} acceleration - Run acceleration
+ * @param {number} direction - Direction (-1 for left, 1 for right)
+ * @param {Function} killSignal - Function that returns true when run should end
+ * @param {Function} end - Callback when run ends
+ * @returns {MovementObject} Opposite direction run movement
+ */
 export const startOppositeRun = (acceleration, direction, killSignal, end) => {
   let framesLeft = 20;
 
@@ -123,6 +194,15 @@ export const startOppositeRun = (acceleration, direction, killSignal, end) => {
   });
 };
 
+/**
+ * Create a frame-by-frame movement generator
+ * 
+ * @param {number} frames - Number of frames to run
+ * @param {Function} callback - Function that returns movement values for each frame
+ * @param {Function} termination - Function that returns true when movement should end
+ * @param {Function} [end] - Callback when movement ends
+ * @returns {Generator} Movement generator
+ */
 function* frameMovement(frames, callback, termination, end = () => { }) {
   let currentFrame = frames;
 
@@ -140,6 +220,16 @@ function* frameMovement(frames, callback, termination, end = () => { }) {
   return false;
 }
 
+/**
+ * Create a direction change bonus movement
+ * 
+ * @param {Object} unit - Unit to apply bonus to
+ * @param {number} direction - Direction (-1 for left, 1 for right)
+ * @param {number} frames - Number of frames to apply bonus
+ * @param {number} bonus - Bonus amount
+ * @param {number} decrease - How much to decrease bonus each frame
+ * @returns {Generator} Bonus movement generator
+ */
 function* directionChangeBonus(unit, direction, frames, bonus, decrease) {
   let inc = bonus;
   yield true;
