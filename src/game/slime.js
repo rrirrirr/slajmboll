@@ -2,7 +2,7 @@ import { Event, events } from '../core/events.js';
 import Actor from './actor.js';
 import { createSlimeElement, updateSlimeTeamAppearance, renderSlime } from '../ui/slimeGraphics.js';
 import { Animation } from '../utils/animations.js';
-import { movement } from '../../config.js';
+import { movement, physics } from '../../config.js';
 import {
   startJump,
   startOppositeRun,
@@ -84,11 +84,11 @@ export function Slime(
   const setupConstants = (slimeConstraints) => {
     areaWidth = slimeConstraints.rightBoundry - slimeConstraints.leftBoundry;
     radius = dimensions.radius;
-    slimeWidth = (areaWidth / K) * radius * 2;
-    slimeHeight = (areaWidth / K) * radius;
-    runAcceleration = (areaWidth / K) * movement.RUN_ACCELERATION;
+    slimeWidth = (areaWidth / physics.K) * radius * 2;
+    slimeHeight = (areaWidth / physics.K) * radius;
+    runAcceleration = (areaWidth / physics.K) * movement.RUN_ACCELERATION;
     bonusStartAcceleration = runAcceleration * 2;
-    dashAcceleration = (areaWidth / K) * 0.052;
+    dashAcceleration = (areaWidth / physics.K) * 0.052;
     bonusThreshold = runAcceleration * 5;
   };
 
@@ -541,6 +541,24 @@ export function Slime(
     actorObject.wallHitEvent.subscribe(onWallHit),
     actorObject.netHitEvent?.subscribe(onNetHit), // Only subscribe if the event exists
   ].filter(Boolean); // Filter out any undefined listeners (if netHitEvent doesn't exist)
+
+  /**
+   * Reset slime position and state
+   * 
+   * @param {Object} pos - New position {x, y}
+   */
+  const reset = (pos) => {
+    // Reset position
+    actorObject.pos.x = pos.x;
+    actorObject.pos.y = pos.y;
+
+    // Reset velocity
+    actorObject._velocity.x = 0;
+    actorObject._velocity.y = 0;
+
+    // Reset state flags
+    isJumping = false;
+  };
 
   /**
    * Destroys the slime and cleans up resources
