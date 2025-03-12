@@ -15,7 +15,8 @@ import {
   createTeamHeaders,
   createWall,
   createBall,
-  createScoreBoard
+  createScoreBoard,
+  waitingScreen
 } from './ui/graphics.js';
 
 // Import game state management
@@ -29,7 +30,8 @@ import {
   canStartGame,
   setGamePlaying,
   setGameSetup,
-  resetGameState
+  resetGameState,
+  setGameState
 } from './core/gameState.js';
 
 // Import start button functionality
@@ -131,6 +133,12 @@ const players = [];
 let playersArea = null;
 
 /**
+ * Player key configurations
+ * @type {Array}
+ */
+let initializedKeyConfigs = [];
+
+/**
  * Reference to start button
  * @type {HTMLElement|null}
  */
@@ -170,8 +178,9 @@ const addPlayerToGame = () => {
 
   const playerIndex = players.length;
 
-  // Get the next available player keys
-  const playerKeyConfig = initializedKeyConfigs[playerIndex] || initializedKeyConfigs[0]; // Fallback to first key set if we run out
+  const playerKeyConfig = initializedKeyConfigs[playerIndex] ||
+    (initializedKeyConfigs.length > 0 ? initializedKeyConfigs[0] : initializeKeyConfigs()[0]); // Fallback with safety check
+
 
   // Setup player keys and event handlers with player index
   const keyHandlers = setupPlayerKeys(playerKeyConfig, playerIndex);
@@ -409,7 +418,9 @@ const initStartScreen = () => {
   // Set up event listeners
   document.addEventListener('keydown', addPlayerKeyHandler);
   startEventListeners();
-  const initializedKeyConfigs = initializeKeyConfigs();
+
+  // Initialize key configurations
+  initializedKeyConfigs = initializeKeyConfigs();
 
   // Clear the main area
   while (gameContainer.firstChild) {
