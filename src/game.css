@@ -156,44 +156,49 @@ body {
   transform: translateX(-50%);
 }
 
+/* Slime styling - simple half-circle */
 .slime {
   position: absolute;
-  width: 70px;  
-  height: 35px; 
+  width: 40px;  
+  height: 20px; /* Half of width for perfect half-circle */
   border-top-left-radius: 70px; 
   border-top-right-radius: 70px;
   border-bottom: 0;
-  z-index: 50; /* Above ground and net but below UI elements */
-  transition: background-color 0.3s ease;
-  transform-origin: bottom center;
+  z-index: 50;
 }
 
 .teamColorOne {
   background-color: gold !important;
-  box-shadow: inset 0 5px 10px rgba(255, 255, 255, 0.5), inset 0 -5px 10px rgba(0, 0, 0, 0.2);
 }
 
 .teamColorTwo {
   background-color: crimson !important;
-  box-shadow: inset 0 5px 10px rgba(255, 255, 255, 0.5), inset 0 -5px 10px rgba(0, 0, 0, 0.2);
 }
 
-/* Ground styling */
 #ground {
   position: absolute;
   bottom: 0;
+  left: 0;
   width: 100%;
-  height: 40px;
-  background-color: #8B4513;
-  background-image: linear-gradient(0deg, #8B4513 60%, #A0522D 100%);
+  height: 50px;
+  background-color: #8B4513; /* Base color */
   border-top: 2px solid #654321;
   z-index: 30;
+  
+  /* Add diagonal stripes pattern */
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 20px,
+    rgba(0, 0, 0, 0.1) 20px,
+    rgba(0, 0, 0, 0.1) 40px
+  );
 }
 
-/* Updated wall/net styling */
+/* Net styling */
 #wall {
   position: absolute;
-  bottom: 40px; /* Start from ground level */
+  bottom: 60px; /* Start at ground level */
   left: 50%;
   transform: translateX(-50%);
   width: 10px;
@@ -201,7 +206,6 @@ body {
   background-color: #0066cc;
   border-top-left-radius: 5px;
   border-top-right-radius: 5px;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
   z-index: 40;
 }
 
@@ -221,7 +225,6 @@ body {
   height: 40px;
   border-radius: 50%;
   background-color: rebeccapurple;
-  box-shadow: inset 0 5px 10px rgba(255, 255, 255, 0.5), inset 0 -5px 10px rgba(0, 0, 0, 0.3);
   z-index: 60; /* Above everything except UI elements */
 }
 

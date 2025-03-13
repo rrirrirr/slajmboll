@@ -77,6 +77,7 @@ export function updateSlimeTeamAppearance(slimeElement, teamNumber) {
 
 /**
  * Renders slime position and appearance with proper half-circle shape
+ * Fixes hovering issue and prevents widening during movement
  * 
  * @param {HTMLElement} slimeElement - The slime DOM element
  * @param {Object} position - Position {x, y} of the slime
@@ -85,34 +86,37 @@ export function updateSlimeTeamAppearance(slimeElement, teamNumber) {
  * @param {number} height - Base height of the slime
  */
 export function renderSlime(slimeElement, position, velocity, width, height) {
-  // Apply position - ensure slime stays on the ground
+  // Apply horizontal position
   slimeElement.style.left = `${position.x - width / 2}px`;
 
-  // Keep slime on the ground
+  // Important: Keep the bottom of the slime firmly on the ground at all times
   slimeElement.style.top = `${position.y - height}px`;
 
-  // Apply squash effect based on horizontal velocity
-  const squashFactor = Math.min(Math.abs(velocity.x) * 0.03, 0.3);
+  // Keep width fixed - no stretching horizontally
+  slimeElement.style.width = `${width}px`;
+  slimeElement.style.height = `${height}px`;
 
-  // When moving, slightly adjust width and height for squash effect
-  // but maintain the volume of the half-circle
-  const stretchedWidth = width * (1 + squashFactor);
-  const compressedHeight = height * (1 - squashFactor * 0.5);
+  const horizontalEffect = Math.min(Math.abs(velocity.x) * 0.5, 15);
+  const directionSign = Math.sign(velocity.x);
 
-  slimeElement.style.width = `${stretchedWidth}px`;
-  slimeElement.style.height = `${compressedHeight}px`;
+  // When moving, the leading edge of the slime gets more pointed
+  // and the trailing edge gets more rounded
+  slimeElement.style.borderTopLeftRadius = `${width - (directionSign < 0 ? horizontalEffect : -horizontalEffect)}px`;
+  slimeElement.style.borderTopRightRadius = `${width - (directionSign > 0 ? horizontalEffect : -horizontalEffect)}px`;
 
-  // Apply deformation effect - adjust border radius for a more dynamic look
-  const horizontalEffect = velocity.x * 2;
-  const baseRadius = stretchedWidth; // Make sure it's a half-circle
-
-  slimeElement.style.borderTopLeftRadius = `${baseRadius - horizontalEffect}px`;
-  slimeElement.style.borderTopRightRadius = `${baseRadius + horizontalEffect}px`;
-
-  // Ensure perfect half circle when still
+  // Return to perfect half-circle when still
   if (Math.abs(velocity.x) < 0.1) {
-    slimeElement.style.borderTopLeftRadius = `${baseRadius}px`;
-    slimeElement.style.borderTopRightRadius = `${baseRadius}px`;
+    slimeElement.style.borderTopLeftRadius = `${width}px`;
+    slimeElement.style.borderTopRightRadius = `${width}px`;
+  }
+
+  // Optional: Add a subtle "squish" effect by adding a transform
+  // This doesn't affect the position, just the visual appearance
+  if (Math.abs(velocity.x) > 0.5) {
+    const skewDegree = Math.min(Math.abs(velocity.x) * 0.3, 5) * directionSign;
+    slimeElement.style.transform = `skewX(${-skewDegree}deg)`;
+  } else {
+    slimeElement.style.transform = 'skewX(0deg)';
   }
 }
 
@@ -153,26 +157,6 @@ export function createSlimeEffect(slimeElement, effectType, baseColor) {
       // Reset to default
       slimeElement.style.background = baseColor;
   }
-}
-
-/**
- * Creates the ground element
- * 
- * @returns {HTMLElement} Ground element
- */
-export function createGround() {
-  const ground = document.createElement('div');
-  ground.id = 'ground';
-  ground.style.position = 'absolute';
-  ground.style.bottom = '0';
-  ground.style.width = '100%';
-  ground.style.height = '40px';
-  ground.style.backgroundColor = '#8B4513';
-  ground.style.backgroundImage = 'linear-gradient(0deg, #8B4513 60%, #A0522D 100%)';
-  ground.style.borderTop = '2px solid #654321';
-  ground.style.zIndex = '30';
-
-  return ground;
 }
 
 /**

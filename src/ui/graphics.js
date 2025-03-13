@@ -319,62 +319,38 @@ export function createGameOverScreen(winningTeam, onPlayAgain) {
 }
 
 /**
- * Creates the center wall/net with improved appearance
+ * Creates the center wall/net with proper positioning relative to ground
  * 
- * @param {number} groundHeight - Height of the ground in pixels
- * @param {number} fieldHeight - Height of the field in pixels
+ * @param {number} groundHeight - Height of the ground element
+ * @param {number} fieldHeight - Total height of the playing field
  * @returns {HTMLElement} Wall element
  */
 export function createWall(groundHeight = 40, fieldHeight = 400) {
-  // Calculate net height as 30% of field height
-  const wallHeight = fieldHeight * 0.3;
-
   const wall = document.createElement('div');
   wall.id = 'wall';
 
-  // Style the wall element
-  wall.style.position = 'absolute';
-  wall.style.bottom = `${groundHeight}px`; // Start at ground level
-  wall.style.left = '50%';
-  wall.style.transform = 'translateX(-50%)';
-  wall.style.width = '10px';
-  wall.style.height = `${wallHeight}px`;
-  wall.style.backgroundColor = '#0066cc';
-  wall.style.borderTopLeftRadius = '5px';
-  wall.style.borderTopRightRadius = '5px';
-  wall.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.3)';
-  wall.style.zIndex = '40';
+  // Calculate net height - 30% of field height is a good proportion
+  const netHeight = Math.min(fieldHeight * 0.3, 120);
+  wall.style.height = `${netHeight}px`;
 
-  // Add net texture
-  const netTextureOverlay = document.createElement('div');
-  netTextureOverlay.style.position = 'absolute';
-  netTextureOverlay.style.top = '0';
-  netTextureOverlay.style.left = '0';
-  netTextureOverlay.style.width = '100%';
-  netTextureOverlay.style.height = '100%';
-  netTextureOverlay.style.backgroundImage = 'repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px)';
+  // Add net texture as child element for better styling
+  const netTexture = document.createElement('div');
+  netTexture.classList.add('net-texture');
+  netTexture.style.position = 'absolute';
+  netTexture.style.top = '0';
+  netTexture.style.left = '0';
+  netTexture.style.width = '100%';
+  netTexture.style.height = '100%';
+  netTexture.style.backgroundImage = 'repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px)';
 
-  wall.appendChild(netTextureOverlay);
+  wall.appendChild(netTexture);
 
   return wall;
 }
 
-/**
- * Creates the ground element
- * 
- * @returns {HTMLElement} Ground element
- */
 export function createGround() {
   const ground = document.createElement('div');
   ground.id = 'ground';
-  ground.style.position = 'absolute';
-  ground.style.bottom = '0';
-  ground.style.width = '100%';
-  ground.style.height = '40px';
-  ground.style.backgroundColor = '#8B4513';
-  ground.style.backgroundImage = 'linear-gradient(0deg, #8B4513 60%, #A0522D 100%)';
-  ground.style.borderTop = '2px solid #654321';
-  ground.style.zIndex = '30';
 
   return ground;
 }
