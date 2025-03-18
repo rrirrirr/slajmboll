@@ -8,7 +8,7 @@
  */
 export const physics = {
   /** Gravity acceleration value */
-  GRAVITY: 0.55,
+  GRAVITY: 0.9,
   /** Maximum falling speed */
   TERMINAL_VELOCITY: 12.5,
   /** Base maximum horizontal velocity */
