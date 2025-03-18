@@ -98,7 +98,7 @@ export default function Actor(
    * Actual collision radius in pixels
    * @type {number}
    */
-  let actualRadius = (areaWidth / K) * radius;
+  let actualRadius = (areaWidth / K) * radius / 2;
 
   /**
    * Right movement boundary
