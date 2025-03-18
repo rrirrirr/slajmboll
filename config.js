@@ -15,6 +15,10 @@ export const physics = {
   MAX_VELOCITY: 10,
   /** Scaling constant for sizes and speeds */
   K: 13,
+  /** Ball bounce energy retention factor (0.0 to 1.0) */
+  BOUNCE_FACTOR: 0.8,
+  /** Slime-ball collision elasticity */
+  SLIME_BOUNCE_FACTOR: 1.9,
 };
 
 /**
