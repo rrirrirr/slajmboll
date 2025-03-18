@@ -63,7 +63,7 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
   };
 
   // Increase the ball's bounciness
-  const bounceFactor = physics.BOUNCE_FACTOR; // 80% energy retained on bounce
+  const bounceFactor = physics.BOUNCE_FACTOR || 0.8; // 80% energy retained on bounce
 
   // Reference to the ball DOM element
   let element = null;
@@ -100,8 +100,9 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
    */
   const checkCollisions = () => {
     // Ground collision with bounce
-    if (actorObject.pos.y >= constraints.ground && actorObject._velocity.y > 0) {
-      actorObject.pos.y = constraints.ground;
+    if (actorObject.pos.y >= constraints.ground - actorObject.realRadius && actorObject._velocity.y > 0) {
+      // Reset position to sit exactly on the ground (accounting for radius)
+      actorObject.pos.y = constraints.ground - actorObject.realRadius;
 
       // Apply bounce if the ball has enough velocity
       if (Math.abs(actorObject._velocity.y) > 0.5) {
@@ -152,12 +153,16 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
 
     // Check net collision
     const ballBottom = actorObject.pos.y + actorObject.realRadius;
+    const ballTop = actorObject.pos.y - actorObject.realRadius;
+    const ballLeft = actorObject.pos.x - actorObject.realRadius;
+    const ballRight = actorObject.pos.x + actorObject.realRadius;
+
     if (
-      actorObject.pos.x + actorObject.realRadius >= netLeft &&
-      actorObject.pos.x - actorObject.realRadius <= netRight &&
+      ballRight >= netLeft &&
+      ballLeft <= netRight &&
       ballBottom >= netTop
     ) {
-      // Determine which side of the net the ball hit
+      // Determine which side/part of the net the ball hit
       if (actorObject._velocity.x > 0 && actorObject.pos.x < netCenter) {
         // Ball moving right, hitting left side of net
         actorObject.pos.x = netLeft - actorObject.realRadius;
@@ -166,7 +171,7 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
         // Ball moving left, hitting right side of net
         actorObject.pos.x = netRight + actorObject.realRadius;
         actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
-      } else if (actorObject._velocity.y > 0) {
+      } else if (actorObject._velocity.y > 0 && ballTop < netTop) {
         // Ball moving down, hitting top of net
         actorObject.pos.y = netTop - actorObject.realRadius;
         actorObject._velocity.y = -actorObject._velocity.y * bounceFactor;
@@ -196,8 +201,8 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
    * Checks if a team scored
    */
   const checkScoring = () => {
-    // Ball must be on the ground
-    if (actorObject.pos.y < constraints.ground - 5) return;
+    // Ball must be on or very near the ground
+    if (actorObject.pos.y < constraints.ground - actorObject.realRadius * 1.2) return;
 
     // Determine which side scored
     const scoringSide = actorObject.pos.x < field.width / 2 ? 2 : 1;

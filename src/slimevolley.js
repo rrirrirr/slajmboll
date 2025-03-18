@@ -290,7 +290,6 @@ const startGame = () => {
   initGame();
 };
 
-
 /**
  * Initializes the game for gameplay
  */
@@ -330,7 +329,13 @@ const initGame = () => {
   ballElement.style.left = `${field.width / 2 - ballSize / 2}px`;
   ballElement.style.top = `${field.height / 3 - ballSize / 2}px`;
 
-  // Create ball physics object
+  // Initialize ball at center position
+  const initialBallPosition = {
+    x: field.width / 2,
+    y: field.height / 3
+  };
+
+  // Create ball physics object using the Ball factory function
   const ballDimensions = { radius: 0.5 }; // Half the size of a slime
   const ballConstraints = {
     rightBoundry: field.width,
@@ -339,35 +344,21 @@ const initGame = () => {
     maxVelocity: 15
   };
 
-  // Initialize ball at center position
-  const initialBallPosition = {
-    x: field.width / 2,
-    y: field.height / 3
-  };
+  // Create ball using the Ball factory function
+  ball = Ball(
+    initialBallPosition,
+    ballDimensions,
+    ballConstraints,
+    field,
+    animationEvent
+  );
 
-  // Create ball physics object
-  ball = {
-    element: ballElement,
-    ao: Actor(
-      initialBallPosition,
-      { x: 0, y: 0 },
-      ballDimensions.radius,
-      ballConstraints.rightBoundry,
-      ballConstraints.leftBoundry,
-      ballConstraints.ground, // Pass adjusted ground position
-      ballConstraints.maxVelocity
-    ),
-    update: function() {
-      this.ao.update();
-      this.render();
-    },
-    render: function() {
-      const ballWidth = parseInt(this.element.style.width);
-      const ballHeight = parseInt(this.element.style.height);
-      this.element.style.left = `${this.ao.pos.x - ballWidth / 2}px`;
-      this.element.style.top = `${this.ao.pos.y - ballHeight / 2}px`;
-    }
-  };
+  // Set the DOM element
+  ball.setElement(ballElement);
+
+  // Subscribe to ball collision events
+  ball.hitSlimeEvent.subscribe(handleBallSlimeCollision);
+  ball.scoredEvent.subscribe(handleScore);
 
   // Create game instance
   gameInstance = Game();
@@ -482,10 +473,17 @@ function update() {
   if (gameState.currentState === GAME_STATES.PLAYING && ball && typeof ball.update === 'function') {
     ball.update();
 
+    // Check for ball-slime collisions
+    slimes.forEach((slime) => {
+      if (slime && typeof ball.checkSlimeCollision === 'function') {
+        ball.checkSlimeCollision(slime);
+      }
+    });
+
     // Check for scoring condition
     if (
       ball.ao &&
-      ball.ao.pos.y >= ball.ao.ground - 5 && // Ball is near ground
+      ball.ao.pos.y >= ball.ao.ground - ball.ao.realRadius * 1.2 && // Ball is near ground
       Math.abs(ball.ao._velocity.y) < 0.8 // Ball has low vertical velocity
     ) {
       // Determine which side the ball is on
@@ -509,6 +507,7 @@ function update() {
     }
   }
 }
+
 
 /**
  * Renders game elements
