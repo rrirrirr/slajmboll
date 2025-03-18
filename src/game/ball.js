@@ -3,35 +3,12 @@ import Actor from './actor.js';
 import { physics } from '../../config.js';
 
 /**
- * @typedef {Object} BallConstraints
- * @property {number} rightBoundry - Right boundary limit
- * @property {number} leftBoundry - Left boundary limit
- * @property {number} ground - Ground level y-coordinate
- * @property {number} maxVelocity - Maximum velocity
- */
-
-/**
- * @typedef {Object} FieldDimensions
- * @property {number} width - Field width
- * @property {number} height - Field height
- */
-
-/**
- * @typedef {Object} BallEvents
- * @property {Object} hitGroundEvent - Event for ground collision
- * @property {Object} hitNetEvent - Event for net collision
- * @property {Object} hitSlimeEvent - Event for slime collision
- * @property {Object} hitWallEvent - Event for wall collision
- * @property {Object} scoredEvent - Event for scoring
- */
-
-/**
  * Creates a ball entity for the game
  * 
  * @param {Object} position - Initial position {x, y}
  * @param {Object} dimensions - Ball dimensions {radius}
- * @param {BallConstraints} constraints - Movement constraints
- * @param {FieldDimensions} field - Field dimensions
+ * @param {Object} constraints - Movement constraints
+ * @param {Object} field - Field dimensions
  * @returns {Object} Ball object with physics and rendering methods
  */
 export function Ball(position, dimensions, constraints, field) {
@@ -66,6 +43,9 @@ export function Ball(position, dimensions, constraints, field) {
   // Reference to the ball DOM element
   let element = null;
 
+  // Ball size (diameter) in pixels
+  let ballSize = 40; // Default size
+
   /**
    * Sets the DOM element for the ball
    * 
@@ -73,6 +53,12 @@ export function Ball(position, dimensions, constraints, field) {
    */
   const setElement = (el) => {
     element = el;
+    if (element) {
+      const width = parseInt(element.style.width);
+      if (width) {
+        ballSize = width;
+      }
+    }
   };
 
   /**
@@ -86,11 +72,35 @@ export function Ball(position, dimensions, constraints, field) {
     element.classList.add('ball');
 
     // Set size based on dimensions
-    const ballSize = (field.width / 20) * dimensions.radius;
-    element.style.width = `${ballSize}px`;
-    element.style.height = `${ballSize}px`;
+    const calculatedSize = (field.width / 20) * dimensions.radius;
+    element.style.width = `${calculatedSize}px`;
+    element.style.height = `${calculatedSize}px`;
 
+    ballSize = calculatedSize;
     return element;
+  };
+
+  /**
+   * Cache of slime dimensions to avoid DOM queries every frame
+   * @type {Map<string, Object>}
+   */
+  const slimeDimensionsCache = new Map();
+
+  /**
+   * Updates the dimensions cache for a slime
+   * 
+   * @param {string} slimeId - Unique ID of the slime
+   */
+  const updateSlimeDimensions = (slimeId) => {
+    const slimeElement = document.querySelector(`[data-slime-id="${slimeId}"]`);
+    if (slimeElement) {
+      const width = parseInt(slimeElement.style.width);
+      const height = parseInt(slimeElement.style.height);
+
+      if (width && height) {
+        slimeDimensionsCache.set(slimeId, { width, height });
+      }
+    }
   };
 
   /**
@@ -98,9 +108,9 @@ export function Ball(position, dimensions, constraints, field) {
    */
   const checkCollisions = () => {
     // Ground collision with bounce
-    if (actorObject.pos.y >= constraints.ground - actorObject.realRadius && actorObject._velocity.y > 0) {
-      // Reset position to sit exactly on the ground (accounting for radius)
-      actorObject.pos.y = constraints.ground - actorObject.realRadius;
+    if (actorObject.pos.y + ballSize / 2 >= constraints.ground && actorObject._velocity.y > 0) {
+      // Reset position to sit exactly on the ground
+      actorObject.pos.y = constraints.ground - ballSize / 2;
 
       // Apply bounce if the ball has enough velocity
       if (Math.abs(actorObject._velocity.y) > 0.5) {
@@ -123,21 +133,21 @@ export function Ball(position, dimensions, constraints, field) {
     const netTop = constraints.ground - netHeight;
 
     // Check if hitting sides of the field
-    if (actorObject.pos.x - actorObject.realRadius <= constraints.leftBoundry) {
-      actorObject.pos.x = constraints.leftBoundry + actorObject.realRadius;
+    if (actorObject.pos.x - ballSize / 2 <= constraints.leftBoundry) {
+      actorObject.pos.x = constraints.leftBoundry + ballSize / 2;
       actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
       hitWallEvent.emit({ side: 'left' });
-    } else if (actorObject.pos.x + actorObject.realRadius >= constraints.rightBoundry) {
-      actorObject.pos.x = constraints.rightBoundry - actorObject.realRadius;
+    } else if (actorObject.pos.x + ballSize / 2 >= constraints.rightBoundry) {
+      actorObject.pos.x = constraints.rightBoundry - ballSize / 2;
       actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
       hitWallEvent.emit({ side: 'right' });
     }
 
     // Check net collision
-    const ballBottom = actorObject.pos.y + actorObject.realRadius;
-    const ballTop = actorObject.pos.y - actorObject.realRadius;
-    const ballLeft = actorObject.pos.x - actorObject.realRadius;
-    const ballRight = actorObject.pos.x + actorObject.realRadius;
+    const ballBottom = actorObject.pos.y + ballSize / 2;
+    const ballTop = actorObject.pos.y - ballSize / 2;
+    const ballLeft = actorObject.pos.x - ballSize / 2;
+    const ballRight = actorObject.pos.x + ballSize / 2;
 
     if (
       ballRight >= netLeft &&
@@ -147,15 +157,15 @@ export function Ball(position, dimensions, constraints, field) {
       // Determine which side/part of the net the ball hit
       if (actorObject._velocity.x > 0 && actorObject.pos.x < netCenter) {
         // Ball moving right, hitting left side of net
-        actorObject.pos.x = netLeft - actorObject.realRadius;
+        actorObject.pos.x = netLeft - ballSize / 2;
         actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
       } else if (actorObject._velocity.x < 0 && actorObject.pos.x > netCenter) {
         // Ball moving left, hitting right side of net
-        actorObject.pos.x = netRight + actorObject.realRadius;
+        actorObject.pos.x = netRight + ballSize / 2;
         actorObject._velocity.x = -actorObject._velocity.x * bounceFactor;
       } else if (actorObject._velocity.y > 0 && ballTop < netTop) {
         // Ball moving down, hitting top of net
-        actorObject.pos.y = netTop - actorObject.realRadius;
+        actorObject.pos.y = netTop - ballSize / 2;
         actorObject._velocity.y = -actorObject._velocity.y * bounceFactor;
       }
 
@@ -168,7 +178,7 @@ export function Ball(position, dimensions, constraints, field) {
    */
   const checkScoring = () => {
     // Ball must be on or very near the ground
-    if (actorObject.pos.y < constraints.ground - actorObject.realRadius * 1.2) return;
+    if (actorObject.pos.y + ballSize / 2 < constraints.ground - 5) return;
 
     // Determine which side scored
     const scoringSide = actorObject.pos.x < field.width / 2 ? 2 : 1;
@@ -183,7 +193,7 @@ export function Ball(position, dimensions, constraints, field) {
   };
 
   /**
-   * Checks collision with a slime
+   * Simple circle-to-circle collision detection with a slime
    * 
    * @param {Object} slime - Slime object to check collision with
    * @returns {boolean} True if collision occurred
@@ -191,25 +201,53 @@ export function Ball(position, dimensions, constraints, field) {
   const checkSlimeCollision = (slime) => {
     if (!slime || !slime.ao) return false;
 
-    // Get slime position and radius
+    // Get ball center and radius
+    const ballX = actorObject.pos.x;
+    const ballY = actorObject.pos.y;
+    const ballRadius = ballSize / 2;
+
+    // Get slime dimensions from cache or update if not available
+    if (!slimeDimensionsCache.has(slime.slimeId)) {
+      updateSlimeDimensions(slime.slimeId);
+    }
+
+    const slimeDimensions = slimeDimensionsCache.get(slime.slimeId);
+    if (!slimeDimensions) return false;
+
+    const slimeWidth = slimeDimensions.width;
+    const slimeHeight = slimeDimensions.height;
+
+    // The slime's center X is at center bottom
     const slimeX = slime.ao.pos.x;
-    const slimeY = slime.ao.pos.y - slime.ao.realRadius / 2; // Adjust for slime height
+
+    // The slime's collision center Y is at the top middle of the half-circle
+    const slimeY = slime.ao.pos.y;
+
+    // For a half-circle, the collision radius equals its width/2
     const slimeRadius = slime.ao.realRadius;
 
-    // Calculate distance between ball and slime
-    const dx = actorObject.pos.x - slimeX;
-    const dy = actorObject.pos.y - slimeY;
+    // Calculate distance between centers
+    const dx = ballX - slimeX;
+    const dy = ballY - slimeY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // Check if collision occurred
-    if (distance < actorObject.realRadius + slimeRadius) {
+
+    // Check for collision
+    if (distance < ballRadius + slimeRadius) {
+      console.log("COLLISION DETECTED");
+      // Debug output
+      console.log("Ball:", ballX, ballY, "radius:", ballRadius);
+      console.log("Slime:", slimeX, slimeY, "radius:", slimeRadius);
+      console.log(slime)
+      console.log("Distance:", distance, "Sum of radii:", ballRadius + slimeRadius);
+
       // Calculate collision normal
       const nx = dx / distance;
       const ny = dy / distance;
 
-      // Adjust ball position to prevent overlap
-      actorObject.pos.x = slimeX + nx * (actorObject.realRadius + slimeRadius);
-      actorObject.pos.y = slimeY + ny * (actorObject.realRadius + slimeRadius);
+      // Move ball outside slime
+      actorObject.pos.x = slimeX + nx * (ballRadius + slimeRadius);
+      actorObject.pos.y = slimeY + ny * (ballRadius + slimeRadius);
 
       // Calculate relative velocity
       const vx = actorObject._velocity.x - (slime.ao._velocity ? slime.ao._velocity.x : 0);
@@ -221,7 +259,8 @@ export function Ball(position, dimensions, constraints, field) {
       // Only respond if objects are moving toward each other
       if (vn < 0) {
         // Calculate bounce impulse
-        const impulse = -(1 + bounceFactor) * vn;
+        const slimeBounce = physics.SLIME_BOUNCE_FACTOR || 1.2;
+        const impulse = -(1 + slimeBounce) * vn;
 
         // Apply impulse to ball velocity
         actorObject._velocity.x += impulse * nx;
@@ -229,7 +268,7 @@ export function Ball(position, dimensions, constraints, field) {
 
         // Apply additional "spin" based on slime's horizontal velocity
         if (slime.ao._velocity) {
-          actorObject._velocity.x += slime.ao._velocity.x * 0.5;
+          actorObject._velocity.x += slime.ao._velocity.x * 0.8;
         }
 
         // Emit collision event
@@ -245,6 +284,18 @@ export function Ball(position, dimensions, constraints, field) {
     }
 
     return false;
+  };
+
+  /**
+   * Forces an update of the slime dimensions cache
+   * Should be called when the screen is resized
+   */
+  const updateAllSlimeDimensions = () => {
+    const slimeElements = document.querySelectorAll('[data-slime-id]');
+    slimeElements.forEach(element => {
+      const slimeId = element.getAttribute('data-slime-id');
+      updateSlimeDimensions(slimeId);
+    });
   };
 
   /**
@@ -288,7 +339,7 @@ export function Ball(position, dimensions, constraints, field) {
    */
   const render = () => {
     if (element) {
-      const ballSize = parseInt(element.style.width);
+      // Center the ball on its position
       element.style.left = `${actorObject.pos.x - ballSize / 2}px`;
       element.style.top = `${actorObject.pos.y - ballSize / 2}px`;
     }
@@ -303,6 +354,7 @@ export function Ball(position, dimensions, constraints, field) {
     checkSlimeCollision,
     createElement,
     setElement,
+    updateAllSlimeDimensions,
     element,
     ao: actorObject,
     hitGroundEvent,

@@ -370,6 +370,31 @@ const initGame = () => {
   gameInstance.newRound(servingTeam);
 };
 
+
+/**
+ * Updates game elements when screen is resized
+ * 
+ * @param {Object} dimensions - New field dimensions
+ */
+function handleFieldResize(dimensions) {
+  // Update field dimensions
+  field.width = dimensions.width;
+  field.height = dimensions.height;
+
+  // Update ball dimensions if the ball exists
+  if (ball && typeof ball.updateAllSlimeDimensions === 'function') {
+    ball.updateAllSlimeDimensions();
+  }
+
+  // Other resize handling code like repositioning elements...
+}
+
+// Find existing resize event or create one
+const fieldResizeEvent = events.get('field_resize') || Event('field_resize');
+
+// Subscribe to the resize event
+fieldResizeEvent.subscribe(handleFieldResize);
+
 /**
  * Handles ball-slime collisions
  * 
