@@ -55,10 +55,6 @@ import { physics } from '../../config.js';
  * @param {number} [team=0] - Team identifier (0=none, 1=left, 2=right)
  * @returns {ActorObject} Actor object with physics and movement methods
  */
-
-const K = physics.K;
-const TERMINALVELOCITY = physics.TERMINAL_VELOCITY;
-
 export default function Actor(
   pos,
   velocity,
@@ -98,7 +94,7 @@ export default function Actor(
    * Actual collision radius in pixels
    * @type {number}
    */
-  let actualRadius = (areaWidth / K) * radius / 2;
+  let actualRadius = (areaWidth / physics.K) * radius / 2;
 
   /**
    * Right movement boundary
@@ -135,7 +131,7 @@ export default function Actor(
    * Maximum movement velocity
    * @type {number}
    */
-  let maximumVelocity = (areaWidth / K) * 0.1;
+  let maximumVelocity = (areaWidth / physics.K) * 0.1;
 
   /**
    * Flag indicating the actor is touching a wall
@@ -147,7 +143,7 @@ export default function Actor(
    * Movement deceleration (friction)
    * @type {number}
    */
-  const movementDeceleration = (areaWidth / K) * 0.008;
+  const movementDeceleration = (areaWidth / physics.K) * 0.008;
 
   /**
    * Jump acceleration
@@ -159,7 +155,7 @@ export default function Actor(
    * Downward acceleration (gravity)
    * @type {number}
    */
-  let downwardAcceleration = 0.9;
+  let downwardAcceleration = physics.GRAVITY;
 
   /**
    * Active movement generators
@@ -185,22 +181,6 @@ export default function Actor(
     let wasGrounded = position.y >= groundLevel;
 
     // Handle ground collision
-    handleGroundCollision(nextPos, wasGrounded);
-
-    // Handle boundary collisions
-    handleBoundaryCollisions(nextPos);
-
-    // Update position
-    position.x = nextPos.x;
-    position.y = nextPos.y;
-  }
-
-  /**
-   * Handle collision with the ground
-   * @param {Position} nextPos - Next calculated position
-   * @param {boolean} wasGrounded - Whether actor was on ground in previous frame
-   */
-  function handleGroundCollision(nextPos, wasGrounded) {
     if (nextPos.y > groundLevel) {
       nextPos.y = groundLevel;
       actorVelocity.y = 0;
@@ -209,40 +189,63 @@ export default function Actor(
         groundHitEvent.emit();
       }
     }
-  }
 
-  /**
-   * Handle collisions with boundaries and walls
-   * @param {Position} nextPos - Next calculated position
-   */
-  function handleBoundaryCollisions(nextPos) {
-    // Left boundary collision
+    // Handle boundary collisions
     if (nextPos.x - actualRadius < effectiveLeftBoundary) {
       nextPos.x = effectiveLeftBoundary + actualRadius;
       actorVelocity.x = 0;
       wallHitEvent.emit(-1);
       isTouchingWall = true;
-    }
-    // Right boundary collision
-    else if (nextPos.x + actualRadius > effectiveRightBoundary) {
+    } else if (nextPos.x + actualRadius > effectiveRightBoundary) {
       nextPos.x = effectiveRightBoundary - actualRadius;
       actorVelocity.x = 0;
 
       // Determine if this is a net collision or wall collision
       if (teamId === 1 && Math.abs(effectiveRightBoundary - netPosition) < 1) {
         netHitEvent.emit(1);
-      } else if (teamId === 2 && Math.abs(effectiveRightBoundary - rightLimit) < 1) {
-        wallHitEvent.emit(1);
+      } else if (teamId === 2 && Math.abs(effectiveLeftBoundary - netPosition) < 1) {
+        netHitEvent.emit(-1);
       } else {
         wallHitEvent.emit(1);
       }
 
       isTouchingWall = true;
-    }
-    // No longer touching a wall
-    else if (isTouchingWall) {
+    } else if (isTouchingWall) {
       isTouchingWall = false;
       wallHitEvent.emit(0);
+    }
+
+    // Update position
+    position.x = nextPos.x;
+    position.y = nextPos.y;
+  }
+
+  /**
+   * Update velocity with physics rules (drag, gravity, limits)
+   */
+  function updateVelocity() {
+    // Apply deceleration (drag)
+    actorVelocity.x += movementDeceleration * -Math.sign(actorVelocity.x);
+
+    // Cap horizontal velocity
+    if (Math.abs(actorVelocity.x) > maximumVelocity) {
+      actorVelocity.x = Math.sign(actorVelocity.x) * maximumVelocity;
+    }
+
+    // Stop completely if velocity is very small
+    if (Math.abs(movementDeceleration) > Math.abs(actorVelocity.x)) {
+      actorVelocity.x = 0;
+    }
+
+    // Apply gravity
+    actorVelocity.y += downwardAcceleration;
+
+    // Cap vertical velocity
+    if (-actorVelocity.y > maximumVelocity) {
+      actorVelocity.y = -maximumVelocity;
+    }
+    if (actorVelocity.y > physics.TERMINAL_VELOCITY) {
+      actorVelocity.y = physics.TERMINAL_VELOCITY;
     }
   }
 
@@ -336,47 +339,18 @@ export default function Actor(
   }
 
   /**
-   * Update velocity with physics rules (drag, gravity, limits)
-   */
-  function updateVelocity() {
-    // Apply deceleration (drag)
-    actorVelocity.x += movementDeceleration * -Math.sign(actorVelocity.x);
-
-    // Cap horizontal velocity
-    if (Math.abs(actorVelocity.x) > maximumVelocity) {
-      actorVelocity.x = Math.sign(actorVelocity.x) * maximumVelocity;
-    }
-
-    // Stop completely if velocity is very small
-    if (Math.abs(movementDeceleration) > Math.abs(actorVelocity.x)) {
-      actorVelocity.x = 0;
-    }
-
-    // Apply gravity
-    actorVelocity.y += downwardAcceleration;
-
-    // Cap vertical velocity
-    if (-actorVelocity.y > maximumVelocity) {
-      actorVelocity.y = -maximumVelocity;
-    }
-    if (actorVelocity.y > TERMINALVELOCITY) {
-      actorVelocity.y = TERMINALVELOCITY;
-    }
-  }
-
-  /**
    * Set the maximum velocity for the actor
    * @param {number} velocity - New maximum velocity multiple
    */
   function setMaxVelocity(velocity) {
-    maximumVelocity = (areaWidth / K) * velocity;
+    maximumVelocity = (areaWidth / physics.K) * velocity;
   }
 
   /**
    * Reset maximum velocity to default value
    */
   function resetMaxVelocity() {
-    maximumVelocity = (areaWidth / K) * 0.1;
+    maximumVelocity = (areaWidth / physics.K) * 0.1;
   }
 
   /**
