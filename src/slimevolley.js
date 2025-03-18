@@ -349,8 +349,7 @@ const initGame = () => {
     initialBallPosition,
     ballDimensions,
     ballConstraints,
-    field,
-    animationEvent
+    field
   );
 
   // Set the DOM element

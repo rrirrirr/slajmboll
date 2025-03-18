@@ -1,6 +1,5 @@
 import { Event } from '../core/events.js';
 import Actor from './actor.js';
-import { Animation, animationsEvent } from '../utils/animations.js';
 import { physics } from '../../config.js';
 
 /**
@@ -33,10 +32,9 @@ import { physics } from '../../config.js';
  * @param {Object} dimensions - Ball dimensions {radius}
  * @param {BallConstraints} constraints - Movement constraints
  * @param {FieldDimensions} field - Field dimensions
- * @param {Object} animationsEvent - Event for visual animations
  * @returns {Object} Ball object with physics and rendering methods
  */
-export function Ball(position, dimensions, constraints, field, animationsEvent) {
+export function Ball(position, dimensions, constraints, field) {
   // Create events for ball collisions
   const hitGroundEvent = Event('ball hit ground');
   const hitNetEvent = Event('ball hit net');
@@ -107,22 +105,6 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
       // Apply bounce if the ball has enough velocity
       if (Math.abs(actorObject._velocity.y) > 0.5) {
         actorObject._velocity.y = -actorObject._velocity.y * bounceFactor;
-
-        // Visual feedback for ground hit
-        if (animationsEvent) {
-          animationsEvent.emit(
-            Animation(
-              5,
-              (frame) => {
-                if (element) {
-                  element.style.boxShadow = `0 0 ${frame * 2}px rgba(0, 0, 0, 0.3)`;
-                }
-                if (frame < 2) element.style.boxShadow = '';
-              },
-              (frame) => frame < 1
-            )
-          );
-        }
       } else {
         // Stop if the bounce would be too small
         actorObject._velocity.y = 0;
@@ -178,22 +160,6 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
       }
 
       hitNetEvent.emit({ x: actorObject.pos.x, y: actorObject.pos.y });
-
-      // Visual feedback for net hit
-      if (animationsEvent) {
-        animationsEvent.emit(
-          Animation(
-            5,
-            (frame) => {
-              if (element) {
-                element.style.backgroundColor = `rgba(128, 0, 128, ${0.5 + frame * 0.1})`;
-              }
-              if (frame < 2) element.style.backgroundColor = '';
-            },
-            (frame) => frame < 1
-          )
-        );
-      }
     }
   };
 
@@ -273,22 +239,6 @@ export function Ball(position, dimensions, constraints, field, animationsEvent) 
           velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y },
           position: { x: actorObject.pos.x, y: actorObject.pos.y }
         });
-
-        // Visual feedback for slime hit
-        if (animationsEvent) {
-          animationsEvent.emit(
-            Animation(
-              5,
-              (frame) => {
-                if (element) {
-                  element.style.transform = `scale(${1 + frame * 0.05})`;
-                }
-                if (frame < 2) element.style.transform = '';
-              },
-              (frame) => frame < 1
-            )
-          );
-        }
 
         return true;
       }
