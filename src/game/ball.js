@@ -24,7 +24,7 @@ export function Ball(position, dimensions, constraints, field) {
   const hitWallEvent = Event('ball hit wall');
   const scoredEvent = Event('ball scored');
 
-  // Create ball actor for physics
+  // Create ball actor for physics, with frictionless=true to prevent horizontal slowdown
   const actorObject = Actor(
     position,
     { x: 0, y: 0 },
@@ -32,7 +32,10 @@ export function Ball(position, dimensions, constraints, field) {
     constraints.rightBoundry,
     constraints.leftBoundry,
     constraints.ground,
-    constraints.maxVelocity
+    constraints.maxVelocity,
+    null, // No resize event needed for ball
+    0,    // No team
+    true  // Set to frictionless so ball doesn't slow down
   );
 
   // Subscribe to actor's collision events
@@ -161,11 +164,10 @@ export function Ball(position, dimensions, constraints, field) {
     // The slime's center X is at center bottom
     const slimeX = slime.ao.pos.x;
 
-    // The slime's collision center Y is at the top middle of the half-circle
-    const slimeY = slime.ao.pos.y;
+    // The slime's collision center Y should be at the geometric center of the half-circle
+    const slimeY = slime.ao.pos.y
 
-    // For a half-circle, the collision radius equals its width/2
-    const slimeRadius = slime.ao.realRadius;
+    const slimeRadius = slime.ao.realRadius
 
     // Use the physics module to check for collision
     if (circlesCollide(
@@ -174,12 +176,6 @@ export function Ball(position, dimensions, constraints, field) {
       { x: slimeX, y: slimeY },
       slimeRadius
     )) {
-      // Debug output
-      // console.log("COLLISION DETECTED");
-      // console.log("Ball:", ballX, ballY, "radius:", ballRadius);
-      // console.log("Slime:", slimeX, slimeY, "radius:", slimeRadius);
-      // console.log(slime);
-
       // Calculate distance for collision response
       const distance = calculateDistance(
         { x: ballX, y: ballY },
@@ -194,45 +190,49 @@ export function Ball(position, dimensions, constraints, field) {
       actorObject.pos.x = slimeX + nx * (ballRadius + slimeRadius);
       actorObject.pos.y = slimeY + ny * (ballRadius + slimeRadius);
 
-      // Get velocities
+      // Get ball velocity
       const ballVelocity = {
         x: actorObject._velocity.x,
         y: actorObject._velocity.y
       };
 
+      // Get slime velocity
       const slimeVelocity = {
         x: slime.ao._velocity ? slime.ao._velocity.x : 0,
         y: slime.ao._velocity ? slime.ao._velocity.y : 0
       };
 
-      // Use physics module to resolve collision
-      const slimeBounce = physics.SLIME_BOUNCE_FACTOR || 1.2;
-      const result = resolveCircleCollision(
-        { x: ballX, y: ballY },
-        ballVelocity,
-        1, // Ball mass
-        { x: slimeX, y: slimeY },
-        slimeVelocity,
-        5, // Slime mass (heavier than ball)
-        slimeBounce
-      );
+      // Calculate bounce response using proper vector reflection
+      const slimeBounce = physics.SLIME_BOUNCE_FACTOR || 1.9;
 
-      // Apply resulting velocity to ball
-      actorObject._velocity.x = result.v1.x;
-      actorObject._velocity.y = result.v1.y;
+      // Calculate dot product of velocity and normal
+      const dotProduct = ballVelocity.x * nx + ballVelocity.y * ny;
 
-      // Add additional "spin" based on slime's horizontal velocity
-      if (slime.ao._velocity) {
-        actorObject._velocity.x += slime.ao._velocity.x * 0.8;
+      // Only bounce if ball is moving toward slime
+      if (dotProduct < 0) {
+        // Properly reflect the velocity vector to preserve horizontal speed
+        // Use the reflection formula: v' = v - 2(v·n)n, then multiply by bounce factor
+        actorObject._velocity.x = ballVelocity.x - 2 * dotProduct * nx * slimeBounce;
+        actorObject._velocity.y = ballVelocity.y - 2 * dotProduct * ny * slimeBounce;
+
+        // Add additional "spin" based on slime's horizontal velocity
+        if (slime.ao._velocity) {
+          actorObject._velocity.x += slime.ao._velocity.x * 0.8;
+        }
+
+        // Set the collision flag to bypass velocity capping for this frame
+        if (typeof actorObject.setCollisionFlag === 'function') {
+          actorObject.setCollisionFlag(true);
+        }
+
+        // Emit collision event
+        hitSlimeEvent.emit({
+          slimeId: slime.slimeId,
+          teamNumber: slime.teamNumber,
+          velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y },
+          position: { x: actorObject.pos.x, y: actorObject.pos.y }
+        });
       }
-
-      // Emit collision event
-      hitSlimeEvent.emit({
-        slimeId: slime.slimeId,
-        teamNumber: slime.teamNumber,
-        velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y },
-        position: { x: actorObject.pos.x, y: actorObject.pos.y }
-      });
 
       return true;
     }

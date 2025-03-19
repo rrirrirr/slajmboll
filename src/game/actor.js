@@ -53,6 +53,7 @@ import { physics } from '../../config.js';
  * @param {number} maxVelocity - Maximum velocity
  * @param {Object} resizeEvent - Event for handling game resize
  * @param {number} [team=0] - Team identifier (0=none, 1=left, 2=right)
+ * @param {boolean} [frictionless=false] - If true, entity will not decelerate naturally
  * @returns {ActorObject} Actor object with physics and movement methods
  */
 export default function Actor(
@@ -64,7 +65,8 @@ export default function Actor(
   ground,
   maxVelocity,
   resizeEvent,
-  team = 0
+  team = 0,
+  frictionless = false
 ) {
   /**
    * The actor's position
@@ -113,6 +115,18 @@ export default function Actor(
    * @type {number}
    */
   let teamId = team;
+
+  /**
+   * Flag to indicate if a collision occurred this frame
+   * @type {boolean}
+   */
+  let hasCollided = false;
+
+  /**
+   * Flag indicating if the entity has no friction
+   * @type {boolean}
+   */
+  let hasFriction = !frictionless;
 
   // Calculate net position (assuming net is at center)
   const netPosition = (rightLimit + leftLimit) / 2;
@@ -224,29 +238,37 @@ export default function Actor(
    * Update velocity with physics rules (drag, gravity, limits)
    */
   function updateVelocity() {
-    // Apply deceleration (drag)
-    actorVelocity.x += movementDeceleration * -Math.sign(actorVelocity.x);
+    // Only apply deceleration (drag) if the entity has friction
+    if (hasFriction) {
+      // Apply deceleration (drag)
+      actorVelocity.x += movementDeceleration * -Math.sign(actorVelocity.x);
 
-    // Cap horizontal velocity
-    if (Math.abs(actorVelocity.x) > maximumVelocity) {
-      actorVelocity.x = Math.sign(actorVelocity.x) * maximumVelocity;
+      // Stop completely if velocity is very small (only for entities with friction)
+      if (Math.abs(movementDeceleration) > Math.abs(actorVelocity.x)) {
+        actorVelocity.x = 0;
+      }
     }
 
-    // Stop completely if velocity is very small
-    if (Math.abs(movementDeceleration) > Math.abs(actorVelocity.x)) {
-      actorVelocity.x = 0;
+    // Cap horizontal velocity ONLY if no collision this frame
+    if (!hasCollided && Math.abs(actorVelocity.x) > maximumVelocity) {
+      actorVelocity.x = Math.sign(actorVelocity.x) * maximumVelocity;
     }
 
     // Apply gravity
     actorVelocity.y += downwardAcceleration;
 
-    // Cap vertical velocity
-    if (-actorVelocity.y > maximumVelocity) {
-      actorVelocity.y = -maximumVelocity;
+    // Cap vertical velocity ONLY if no collision this frame
+    if (!hasCollided) {
+      if (-actorVelocity.y > maximumVelocity) {
+        actorVelocity.y = -maximumVelocity;
+      }
+      if (actorVelocity.y > physics.TERMINAL_VELOCITY) {
+        actorVelocity.y = physics.TERMINAL_VELOCITY;
+      }
     }
-    if (actorVelocity.y > physics.TERMINAL_VELOCITY) {
-      actorVelocity.y = physics.TERMINAL_VELOCITY;
-    }
+
+    // Reset collision flag for next frame
+    hasCollided = false;
   }
 
   /**
@@ -284,6 +306,14 @@ export default function Actor(
    */
   function getSpeed() {
     return actorVelocity.x;
+  }
+
+  /**
+   * Set whether this entity has friction
+   * @param {boolean} hasFrictionValue - Whether entity has friction
+   */
+  function setFriction(hasFrictionValue) {
+    hasFriction = hasFrictionValue;
   }
 
   /**
@@ -354,6 +384,15 @@ export default function Actor(
   }
 
   /**
+   * Set collision flag for this frame
+   * 
+   * @param {boolean} value - Whether a collision occurred
+   */
+  function setCollisionFlag(value = true) {
+    hasCollided = value;
+  }
+
+  /**
    * Update the actor's physics for one frame
    */
   function update() {
@@ -374,12 +413,16 @@ export default function Actor(
     setMaxVelocity,
     resetMaxVelocity,
     updateTeam,
+    setCollisionFlag,
+    setFriction,
     _velocity: actorVelocity, // Keep for backward compatibility
     getSpeed,
     _downwardAcceleration: downwardAcceleration, // Keep for backward compatibility
     jumpAcceleration,
     ground: groundLevel,
     realRadius: actualRadius,
-    team: teamId
+    team: teamId,
+    hasCollided: hasCollided,
+    frictionless: frictionless
   };
 }
