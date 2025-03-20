@@ -19,6 +19,8 @@ export const physics = {
   BOUNCE_FACTOR: 1.0,
   /** Slime-ball collision elasticity */
   SLIME_BOUNCE_FACTOR: 1.9,
+  /** Net bounce boost factor - vertical speed added after net collision */
+  NET_BOUNCE_BOOST: 0.15,
 };
 
 /**
