@@ -323,11 +323,13 @@ export function createGameOverScreen(winningTeam, onPlayAgain) {
  * 
  * @param {number} groundHeight - Height of the ground element
  * @param {number} fieldHeight - Total height of the playing field
+ * @param {number} fieldWidth - Width of the playing field
  * @returns {HTMLElement} Wall element
  */
-export function createWall(groundHeight = 40, fieldHeight = 400) {
+export function createWall(groundHeight = 40, fieldHeight = 400, fieldWidth = 800) {
   // Calculate net dimensions from config
-  const netWidth = fieldHeight * dimensions.NET_WIDTH_PERCENT;
+  // FIXED: Use fieldWidth instead of fieldHeight for net width calculation
+  const netWidth = fieldWidth * dimensions.NET_WIDTH_PERCENT;
   const netHeight = fieldHeight * dimensions.NET_HEIGHT_PERCENT;
 
   const wall = document.createElement('div');

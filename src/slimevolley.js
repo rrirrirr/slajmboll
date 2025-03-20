@@ -310,7 +310,7 @@ const initGame = () => {
   const groundHeight = 40; // Match the height defined in createGround
 
   // Create center wall/net with improved height
-  const wall = createWall(groundHeight, field.height);
+  const wall = createWall(groundHeight, field.height, field.width);
   gameContainer.appendChild(wall);
 
   // Calculate ground position (where slimes stand)
