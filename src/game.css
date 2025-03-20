@@ -195,10 +195,9 @@ body {
   );
 }
 
-/* Net styling */
 #wall {
   position: absolute;
-  bottom: 60px; /* Start at ground level */
+  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 10px;
@@ -207,6 +206,7 @@ body {
   border-top-left-radius: 5px;
   border-top-right-radius: 5px;
   z-index: 40;
+  overflow: visible;
 }
 
 /* Game field update to accommodate ground */
