@@ -1,6 +1,6 @@
 import { Event } from '../core/events.js';
 import { updatePlayerTeam } from '../core/gameState.js';
-import { teams } from '../../config.js';
+import { teams, dimensions } from '../../config.js';
 
 /**
  * Creates a slime element
@@ -319,19 +319,29 @@ export function createGameOverScreen(winningTeam, onPlayAgain) {
 }
 
 /**
- * Creates the center wall/net with proper positioning relative to ground
+ * Creates the center wall/net with proper height from config
  * 
  * @param {number} groundHeight - Height of the ground element
  * @param {number} fieldHeight - Total height of the playing field
  * @returns {HTMLElement} Wall element
  */
 export function createWall(groundHeight = 40, fieldHeight = 400) {
+  // Calculate net dimensions from config
+  const netWidth = fieldHeight * dimensions.NET_WIDTH_PERCENT;
+  const netHeight = fieldHeight * dimensions.NET_HEIGHT_PERCENT;
+
   const wall = document.createElement('div');
   wall.id = 'wall';
-
-  // Calculate net height - 30% of field height is a good proportion
-  const netHeight = Math.min(fieldHeight * 0.3, 120);
+  wall.style.position = 'absolute';
+  wall.style.bottom = `${groundHeight}px`; // Start at ground level
+  wall.style.left = '50%';
+  wall.style.transform = 'translateX(-50%)';
+  wall.style.width = `${netWidth}px`;
   wall.style.height = `${netHeight}px`;
+  wall.style.backgroundColor = '#0066cc';
+  wall.style.borderTopLeftRadius = '5px';
+  wall.style.borderTopRightRadius = '5px';
+  wall.style.zIndex = '40';
 
   // Add net texture as child element for better styling
   const netTexture = document.createElement('div');

@@ -288,6 +288,19 @@ export function Ball(position, dimensions, constraints, field) {
     actorObject.update();
   };
 
+  actorObject.netHitEvent.subscribe(direction => {
+    if (direction !== 0) {
+      // Log the event for debugging
+      console.log(`Ball hit net with direction ${direction}`);
+
+      hitNetEvent.emit({
+        direction,
+        position: { x: actorObject.pos.x, y: actorObject.pos.y },
+        velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y }
+      });
+    }
+  });
+
   /**
    * Renders ball position to DOM
    */

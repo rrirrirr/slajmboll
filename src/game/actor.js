@@ -1,5 +1,5 @@
 import { Event } from '../core/events.js';
-import { physics } from '../../config.js';
+import { physics, dimensions } from '../../config.js';
 
 /**
  * @typedef {Object} Position
@@ -204,25 +204,99 @@ export default function Actor(
       }
     }
 
-    // Handle boundary collisions
+    // Net collision - use the configuration value
+    const netWidth = (rightLimit - leftLimit) * dimensions.NET_WIDTH_PERCENT;
+    const netHalfWidth = netWidth / 2;
+
+    // Use NET_HEIGHT_PERCENT from config
+    const fieldHeight = groundLevel; // Assuming ground is at the bottom
+    const netHeight = fieldHeight * dimensions.NET_HEIGHT_PERCENT;
+    const netTopY = groundLevel - netHeight;
+
+    // Check for net collision or boundary
+    const distanceToNet = Math.abs(nextPos.x - netPosition);
+
+    // For slimes, enforce team boundary at the net, regardless of height
+    if (!frictionless && teamId > 0) {
+      // Team 1 (left side) cannot go right of the net
+      if (teamId === 1 && nextPos.x > netPosition - netHalfWidth - actualRadius) {
+        nextPos.x = netPosition - netHalfWidth - actualRadius;
+        actorVelocity.x = 0;
+        netHitEvent.emit(-1);
+      }
+      // Team 2 (right side) cannot go left of the net
+      else if (teamId === 2 && nextPos.x < netPosition + netHalfWidth + actualRadius) {
+        nextPos.x = netPosition + netHalfWidth + actualRadius;
+        actorVelocity.x = 0;
+        netHitEvent.emit(1);
+      }
+    }
+    // For the ball (frictionless=true), handle normal net collision physics
+    else if (distanceToNet < (actualRadius + netHalfWidth)) {
+      // Check if hitting the vertical part of the net
+      if (nextPos.y >= netTopY) {
+        // Handle collision with the vertical part of the net
+        if (position.x < netPosition) {
+          // Coming from left side
+          nextPos.x = netPosition - netHalfWidth - actualRadius;
+
+          // Apply bouncing effect for the ball
+          actorVelocity.x = -Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
+          // Add slight upward boost for the ball
+          actorVelocity.y -= Math.abs(actorVelocity.x) * 0.15;
+
+          netHitEvent.emit(-1);
+        } else {
+          // Coming from right side
+          nextPos.x = netPosition + netHalfWidth + actualRadius;
+
+          // Apply bouncing effect for the ball
+          actorVelocity.x = Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
+          // Add slight upward boost for the ball
+          actorVelocity.y -= Math.abs(actorVelocity.x) * 0.15;
+
+          netHitEvent.emit(1);
+        }
+      }
+      // Check if hitting the top of the net
+      else if (Math.abs(nextPos.y - netTopY) < actualRadius) {
+        // Position outside of net
+        nextPos.y = netTopY - actualRadius;
+
+        // Bounce for the ball
+        actorVelocity.y = -Math.abs(actorVelocity.y) * physics.BOUNCE_FACTOR;
+        actorVelocity.x *= 0.8; // Reduce horizontal speed slightly
+
+        netHitEvent.emit(position.x < netPosition ? -1 : 1);
+      }
+    }
+
+    // Handle wall collisions
     if (nextPos.x - actualRadius < effectiveLeftBoundary) {
       nextPos.x = effectiveLeftBoundary + actualRadius;
-      actorVelocity.x = 0;
+
+      // Only apply bouncing effect for the ball (frictionless=true)
+      if (frictionless) {
+        actorVelocity.x = Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
+      } else {
+        // For slimes, just stop horizontal movement
+        actorVelocity.x = 0;
+      }
+
       wallHitEvent.emit(-1);
       isTouchingWall = true;
     } else if (nextPos.x + actualRadius > effectiveRightBoundary) {
       nextPos.x = effectiveRightBoundary - actualRadius;
-      actorVelocity.x = 0;
 
-      // Determine if this is a net collision or wall collision
-      if (teamId === 1 && Math.abs(effectiveRightBoundary - netPosition) < 1) {
-        netHitEvent.emit(1);
-      } else if (teamId === 2 && Math.abs(effectiveLeftBoundary - netPosition) < 1) {
-        netHitEvent.emit(-1);
+      // Only apply bouncing effect for the ball (frictionless=true)
+      if (frictionless) {
+        actorVelocity.x = -Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
       } else {
-        wallHitEvent.emit(1);
+        // For slimes, just stop horizontal movement
+        actorVelocity.x = 0;
       }
 
+      wallHitEvent.emit(1);
       isTouchingWall = true;
     } else if (isTouchingWall) {
       isTouchingWall = false;
@@ -390,6 +464,95 @@ export default function Actor(
    */
   function setCollisionFlag(value = true) {
     hasCollided = value;
+  }
+
+  /**
+   * Handle net collision with accurate height
+   * 
+   * @param {Object} nextPos - Next calculated position
+   * @returns {boolean} True if a net collision occurred
+   */
+  function handleNetCollision(nextPos) {
+    // Net properties
+    const netWidth = 10; // Width of the net in pixels
+    const netHalfWidth = netWidth / 2;
+
+    // Get actual net height from DOM if possible, otherwise use a reasonable default
+    // This ensures the collision height matches the visual height
+    let netHeight = 120; // Default height
+    const netElement = document.getElementById('wall');
+    if (netElement) {
+      const netStyle = getComputedStyle(netElement);
+      netHeight = parseInt(netStyle.height) || netHeight;
+    }
+
+    // Calculate net top position - this is where the net starts from the ground
+    const netTopY = groundLevel - netHeight;
+
+    // Distance of ball center to net center
+    const horizontalDist = Math.abs(nextPos.x - netPosition);
+
+    // Quick early exit if too far horizontally
+    if (horizontalDist > (actualRadius + netHalfWidth) * 1.2) {
+      return false;
+    }
+
+    // Collision with any part of the net
+    if (nextPos.y >= netTopY && horizontalDist < (actualRadius + netHalfWidth)) {
+      // Handle side collision
+      if (position.x < netPosition) {
+        // Coming from left
+        nextPos.x = netPosition - netHalfWidth - actualRadius;
+        actorVelocity.x = -Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
+        netHitEvent.emit(-1);
+      } else {
+        // Coming from right
+        nextPos.x = netPosition + netHalfWidth + actualRadius;
+        actorVelocity.x = Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
+        netHitEvent.emit(1);
+      }
+
+      // Add upward boost for the ball
+      if (frictionless) {
+        actorVelocity.y -= Math.abs(actorVelocity.x) * (physics.NET_BOUNCE_BOOST || 0.15);
+      }
+
+      return true;
+    }
+
+    // Check for collision with the top of the net (simplified to horizontal line for now)
+    const distance = Math.sqrt(
+      Math.pow(nextPos.x - netPosition, 2) +
+      Math.pow(nextPos.y - netTopY, 2)
+    );
+
+    if (distance < actualRadius && nextPos.y < netTopY + actualRadius) {
+      // Calculate normal vector (simplified to mostly upward)
+      const nx = (nextPos.x - netPosition) / distance;
+      const ny = -0.9; // Mostly upward bounce
+
+      // Normalize the normal vector
+      const normalLength = Math.sqrt(nx * nx + ny * ny);
+      const normalizedNx = nx / normalLength;
+      const normalizedNy = ny / normalLength;
+
+      // Calculate dot product of velocity and normal
+      const dotProduct = actorVelocity.x * normalizedNx + actorVelocity.y * normalizedNy;
+
+      // Reflect velocity across the normal
+      actorVelocity.x = actorVelocity.x - 2 * dotProduct * normalizedNx * physics.BOUNCE_FACTOR;
+      actorVelocity.y = actorVelocity.y - 2 * dotProduct * normalizedNy * physics.BOUNCE_FACTOR;
+
+      // Position ball outside the net
+      nextPos.y = netTopY - actualRadius;
+
+      // Emit event
+      netHitEvent.emit(nextPos.x < netPosition ? -1 : 1);
+
+      return true;
+    }
+
+    return false;
   }
 
   /**

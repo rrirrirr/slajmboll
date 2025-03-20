@@ -160,39 +160,9 @@ export function createSlimeEffect(slimeElement, effectType, baseColor) {
 }
 
 /**
- * Creates the center wall/net with improved height
+ * Creates the center wall/net with a half-circle top
  * 
  * @param {number} groundHeight - Height of the ground element
  * @param {number} fieldHeight - Total height of the playing field
  * @returns {HTMLElement} Wall element
  */
-export function createWall(groundHeight = 40, fieldHeight = 400) {
-  const netHeight = fieldHeight * 0.3; // 30% of field height
-
-  const wall = document.createElement('div');
-  wall.id = 'wall';
-  wall.style.position = 'absolute';
-  wall.style.bottom = `${groundHeight}px`; // Start at ground level
-  wall.style.left = '50%';
-  wall.style.transform = 'translateX(-50%)';
-  wall.style.width = '10px';
-  wall.style.height = `${netHeight}px`;
-  wall.style.backgroundColor = '#0066cc';
-  wall.style.borderTopLeftRadius = '5px';
-  wall.style.borderTopRightRadius = '5px';
-  wall.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.3)';
-  wall.style.zIndex = '40';
-
-  // Add a net texture
-  const netTexture = document.createElement('div');
-  netTexture.style.position = 'absolute';
-  netTexture.style.top = '0';
-  netTexture.style.left = '0';
-  netTexture.style.width = '100%';
-  netTexture.style.height = '100%';
-  netTexture.style.backgroundImage = 'repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px)';
-
-  wall.appendChild(netTexture);
-
-  return wall;
-}
