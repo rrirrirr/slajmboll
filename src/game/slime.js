@@ -84,7 +84,7 @@ export function Slime(
   const setupConstants = (slimeConstraints) => {
     areaWidth = slimeConstraints.rightBoundry - slimeConstraints.leftBoundry;
     radius = dimensions.radius;
-    slimeWidth = (areaWidth / physics.K) * radius * 0.9;
+    slimeWidth = (areaWidth / physics.K) * radius;
     slimeHeight = slimeWidth / 2;
     runAcceleration = (areaWidth / physics.K) * movement.RUN_ACCELERATION;
     bonusStartAcceleration = runAcceleration * 2;
