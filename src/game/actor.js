@@ -131,6 +131,10 @@ export default function Actor(
   // Calculate net position (assuming net is at center)
   const netPosition = (rightLimit + leftLimit) / 2;
 
+  // Calculate net width, ensuring consistency for collision
+  const netWidth = areaWidth * dimensions.NET_WIDTH_PERCENT;
+  const netHalfWidth = netWidth / 2;
+
   // Boundaries adjusted based on team
   let effectiveLeftBoundary = leftLimit;
   let effectiveRightBoundary = rightLimit;
@@ -204,10 +208,6 @@ export default function Actor(
       }
     }
 
-    // Net collision - use the configuration value
-    const netWidth = (rightLimit - leftLimit) * dimensions.NET_WIDTH_PERCENT;
-    const netHalfWidth = netWidth / 2;
-
     // Use NET_HEIGHT_PERCENT from config
     const fieldHeight = groundLevel; // Assuming ground is at the bottom
     const netHeight = fieldHeight * dimensions.NET_HEIGHT_PERCENT;
@@ -219,14 +219,14 @@ export default function Actor(
     // For slimes, enforce team boundary at the net, regardless of height
     if (!frictionless && teamId > 0) {
       // Team 1 (left side) cannot go right of the net
-      if (teamId === 1 && nextPos.x > netPosition - netHalfWidth - actualRadius) {
-        nextPos.x = netPosition - netHalfWidth - actualRadius;
+      if (teamId === 1 && nextPos.x > netPosition) {
+        nextPos.x = netPosition;
         actorVelocity.x = 0;
         netHitEvent.emit(-1);
       }
       // Team 2 (right side) cannot go left of the net
-      else if (teamId === 2 && nextPos.x < netPosition + netHalfWidth + actualRadius) {
-        nextPos.x = netPosition + netHalfWidth + actualRadius;
+      else if (teamId === 2 && nextPos.x < netPosition) {
+        nextPos.x = netPosition;
         actorVelocity.x = 0;
         netHitEvent.emit(1);
       }
@@ -271,7 +271,7 @@ export default function Actor(
       }
     }
 
-    // Handle wall collisions
+    // Handle wall collisions with consistent spacing
     if (nextPos.x - actualRadius < effectiveLeftBoundary) {
       nextPos.x = effectiveLeftBoundary + actualRadius;
 
@@ -474,7 +474,7 @@ export default function Actor(
    */
   function handleNetCollision(nextPos) {
     // Net properties
-    const netWidth = 10; // Width of the net in pixels
+    const netWidth = areaWidth * dimensions.NET_WIDTH_PERCENT;
     const netHalfWidth = netWidth / 2;
 
     // Get actual net height from DOM if possible, otherwise use a reasonable default
