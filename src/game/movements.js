@@ -132,25 +132,44 @@ export const startWallJump = (
  * @param {Function} [end] - Callback when jump ends
  * @returns {MovementObject} Direction change jump movement
  */
-export const startDirectionChangeJump = (acceleration, direction, killSignal, end = () => { }) => {
-  const jumpPower = acceleration * 9.6;
 
-  const fm = frameMovement(
-    25,
+/**
+ * Create a direction change jump movement
+ * 
+ * @param {Object} unit - Actor object to apply the jump to
+ * @param {number} acceleration - Jump acceleration
+ * @param {number} lockFrames - Number of frames to lock horizontal movement
+ * @param {number} totalFrames - Number of frames until jump has reached its peak
+ * @param {Function} killSignal - Function that returns true when jump should end
+ * @param {Function} [end] - Callback when jump ends
+ * @returns {MovementObject} Direction change jump movement
+ */
+export const startDirectionChangeJump = (unit, acceleration, lockFrames = 12, totalFrames = 24, killSignal, end = () => { }) => {
+  let frameCount = 0;
+  console.log("acc: ", acceleration)
+  const jumpMovement = frameMovement(
+    lockFrames,
     (frame) => {
-      const framePercent = frame / 25;
+      frameCount++;
 
-      return {
-        x: 0,
-        y: -jumpPower * framePercent
-      };
+      // Upward force that decreases linearly
+      const strength = -acceleration * (1 - (frameCount / totalFrames) * 0.1);
+
+      if (frameCount < lockFrames) {
+        console.log(frameCount, lockFrames)
+        unit._velocity.x = 0;
+      }
+
+      return { x: 0, y: strength };
     },
-    killSignal,
+    () => {
+      return frameCount >= totalFrames;
+    },
     end
   );
 
   return Movement(() => {
-    return fm.next().value;
+    return jumpMovement.next().value;
   });
 };
 

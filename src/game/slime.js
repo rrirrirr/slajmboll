@@ -158,54 +158,59 @@ export function Slime(
         console.log('Direction change jump!');
         lastDirectionChangeTime = 0;
 
-        // Visual feedback
-        animationsEvent.emit(
-          Animation(
-            10,
-            (frame) => {
-              slimeElement.style.background = `linear-gradient(0deg, ${slimeAppearance.color} ${frame * 10}%, white ${frame * 15}%)`;
-              if (frame < 2) slimeElement.style.background = '';
-            },
-            (frame) => frame < 1
-          )
-        );
-
         // Clear any existing jump movement
         if (activeJumpMovement) {
           actorObject.removeMovement(activeJumpMovement);
+          activeJumpMovement = null;
         }
 
-        actorObject.setMaxVelocity(1.5);
+        // Temporarily increase max velocity to allow for a much higher jump
+        actorObject.setMaxVelocity(5.0);
+
         activeJumpMovement = startDirectionChangeJump(
-          jumpAcceleration,
-          runningDirection,
-          () => !isJumping,
+          actorObject,
+          jumpAcceleration * 20.0,
+          12, // Lock frames
+          24, // total frames
+          () => false, // no kill signal
           () => {
+            // Callback when jump completes
+            console.log('has run', isRunning, isRunningLeft, isRunningRight)
+            console.log(activeRunMovement)
+            console.log("Direction change jump complete");
+
+            // Restore original jump release handler
+            // onJumpReleased = originalJumpRelease;
+
+            // Reset states
+            isJumping = false;
             actorObject.resetMaxVelocity();
             activeJumpMovement = null;
           }
         );
-        actorObject.addMovement(activeJumpMovement);
-      }
-      else if (hasDirectionChangeBonus) {
-        console.log('bonus jump');
 
-        // Clear any existing jump movement
-        if (activeJumpMovement) {
-          actorObject.removeMovement(activeJumpMovement);
-        }
-
-        actorObject.setMaxVelocity(2.2);
-        activeJumpMovement = startJump(
-          bonusJumpAcceleration,
-          () => !isJumping,
-          () => {
-            actorObject.resetMaxVelocity();
-            activeJumpMovement = null;
-          }
-        );
         actorObject.addMovement(activeJumpMovement);
+
       }
+      // else if (hasDirectionChangeBonus) {
+      //   console.log('bonus jump');
+
+      //   // Clear any existing jump movement
+      //   if (activeJumpMovement) {
+      //     actorObject.removeMovement(activeJumpMovement);
+      //   }
+
+      //   actorObject.setMaxVelocity(2.2);
+      //   activeJumpMovement = startJump(
+      //     bonusJumpAcceleration,
+      //     () => !isJumping,
+      //     () => {
+      //       actorObject.resetMaxVelocity();
+      //       activeJumpMovement = null;
+      //     }
+      //   );
+      //   actorObject.addMovement(activeJumpMovement);
+      // }
       else {
         console.log('standard jump');
 
