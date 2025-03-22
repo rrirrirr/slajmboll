@@ -169,7 +169,7 @@ export function Slime(
 
         activeJumpMovement = startDirectionChangeJump(
           actorObject,
-          jumpAcceleration * 20.0,
+          jumpAcceleration * 6.0,
           12, // Lock frames
           24, // total frames
           () => false, // no kill signal
@@ -231,45 +231,45 @@ export function Slime(
       }
     }
     else if (isHuggingWall !== 0 && hasWallJump) {
-      console.log("Executing wall jump, direction:", -isHuggingWall);
-      isJumping = true;
-      hasWallJump = false;
-      delayedActionsEvent.emit({
-        slimeId: slimeId,
-        delay: movement.WALL_JUMP_COOLDOWN,
-        execute: () => {
-          hasWallJump = true;
-        }
-      });
+      // console.log("Executing wall jump, direction:", -isHuggingWall);
+      // isJumping = true;
+      // hasWallJump = false;
+      // delayedActionsEvent.emit({
+      //   slimeId: slimeId,
+      //   delay: movement.WALL_JUMP_COOLDOWN,
+      //   execute: () => {
+      //     hasWallJump = true;
+      //   }
+      // });
 
-      // Visual feedback for wall jump
-      animationsEvent.emit(
-        Animation(
-          6,
-          (frame) => {
-            slimeElement.style.background = `linear-gradient(${-isHuggingWall * 90}deg, ${slimeAppearance.color} ${frame * 15}%, white ${frame * 20}%)`;
-            if (frame < 2) slimeElement.style.background = '';
-          },
-          (frame) => frame < 1
-        )
-      );
+      // // Visual feedback for wall jump
+      // animationsEvent.emit(
+      //   Animation(
+      //     6,
+      //     (frame) => {
+      //       slimeElement.style.background = `linear-gradient(${-isHuggingWall * 90}deg, ${slimeAppearance.color} ${frame * 15}%, white ${frame * 20}%)`;
+      //       if (frame < 2) slimeElement.style.background = '';
+      //     },
+      //     (frame) => frame < 1
+      //   )
+      // );
 
-      // Clear any existing jump movement
-      if (activeJumpMovement) {
-        actorObject.removeMovement(activeJumpMovement);
-      }
+      // // Clear any existing jump movement
+      // if (activeJumpMovement) {
+      //   actorObject.removeMovement(activeJumpMovement);
+      // }
 
-      actorObject.setMaxVelocity(1.2);
-      activeJumpMovement = startWallJump(
-        jumpAcceleration,
-        -isHuggingWall,
-        () => !isJumping,
-        () => {
-          actorObject.resetMaxVelocity();
-          activeJumpMovement = null;
-        }
-      );
-      actorObject.addMovement(activeJumpMovement);
+      // actorObject.setMaxVelocity(1.2);
+      // activeJumpMovement = startWallJump(
+      //   jumpAcceleration,
+      //   -isHuggingWall,
+      //   () => !isJumping,
+      //   () => {
+      //     actorObject.resetMaxVelocity();
+      //     activeJumpMovement = null;
+      //   }
+      // );
+      // actorObject.addMovement(activeJumpMovement);
     }
   };
 
@@ -324,18 +324,28 @@ export function Slime(
       ? () => !isRunningLeft
       : () => !isRunningRight;
 
-    actorObject.setMaxVelocity(0.15);
+    // actorObject.setMaxVelocity(0.15);
+
     activeRunMovement = startOppositeRun(
       bonusStartAcceleration,
       direction,
       killSignal,
-      () => {
-        hasDirectionChangeBonus = false;
-        actorObject.resetMaxVelocity();
-        activeRunMovement = null;
-      }
+      runAcceleration  // Pass normal acceleration for after bonus period
     );
+
     actorObject.addMovement(activeRunMovement);
+
+    // Create a delayed action just to reset the flag
+    const bonusDuration = 20;
+    delayedActionsEvent.emit({
+      slimeId: slimeId,
+      delay: bonusDuration,
+      execute: () => {
+        hasDirectionChangeBonus = false;
+      }
+    });
+
+
   };
 
   /**
@@ -377,6 +387,7 @@ export function Slime(
    * @param {number} direction - Direction (-1 for left, 1 for right)
    */
   const onMovementRelease = (direction) => {
+    console.log('release movement', direction)
     if (direction === -1) {
       isRunningLeft = false;
       if (runningDirection === -1) {

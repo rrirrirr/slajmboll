@@ -126,16 +126,6 @@ export const startWallJump = (
 /**
  * Create a direction change jump movement
  * 
- * @param {number} acceleration - Jump acceleration
- * @param {number} direction - Direction (-1 for left, 1 for right)
- * @param {Function} killSignal - Function that returns true when jump should end
- * @param {Function} [end] - Callback when jump ends
- * @returns {MovementObject} Direction change jump movement
- */
-
-/**
- * Create a direction change jump movement
- * 
  * @param {Object} unit - Actor object to apply the jump to
  * @param {number} acceleration - Jump acceleration
  * @param {number} lockFrames - Number of frames to lock horizontal movement
@@ -146,17 +136,19 @@ export const startWallJump = (
  */
 export const startDirectionChangeJump = (unit, acceleration, lockFrames = 12, totalFrames = 24, killSignal, end = () => { }) => {
   let frameCount = 0;
-  console.log("acc: ", acceleration)
+
   const jumpMovement = frameMovement(
-    lockFrames,
+    totalFrames,
     (frame) => {
       frameCount++;
+      console.log(frameCount, lockFrames)
+      console.log('velocity is:')
+      console.log(unit._velocity)
 
       // Upward force that decreases linearly
       const strength = -acceleration * (1 - (frameCount / totalFrames) * 0.1);
 
       if (frameCount < lockFrames) {
-        console.log(frameCount, lockFrames)
         unit._velocity.x = 0;
       }
 
@@ -196,20 +188,35 @@ export const startRun = (acceleration, direction, killSignal) => {
  * @param {number} acceleration - Run acceleration
  * @param {number} direction - Direction (-1 for left, 1 for right)
  * @param {Function} killSignal - Function that returns true when run should end
- * @param {Function} end - Callback when run ends
+ * @param {number} normalAcceleration - Acceleration to use after bonus period ends
  * @returns {MovementObject} Opposite direction run movement
  */
-export const startOppositeRun = (acceleration, direction, killSignal, end) => {
+export const startOppositeRun = (acceleration, direction, killSignal, normalAcceleration) => {
   let framesLeft = 20;
+  let hasTransitioned = false;
 
   return Movement(() => {
-    if (killSignal() || framesLeft <= 0) {
-      end();
+    // Check if this movement should end due to key release
+    if (killSignal()) {
       return false;
     }
 
-    framesLeft--;
-    return { x: direction * acceleration, y: 0 };
+    // If we still have bonus frames left
+    if (framesLeft > 0) {
+      framesLeft--;
+      return { x: direction * acceleration, y: 0 };
+    }
+    // Once bonus period is over, transition to normal acceleration
+    else {
+      // Log the transition once
+      if (!hasTransitioned) {
+        console.log('Bonus period ended, using normal acceleration');
+        hasTransitioned = true;
+      }
+
+      // Continue with normal acceleration
+      return { x: direction * normalAcceleration, y: 0 };
+    }
   });
 };
 
