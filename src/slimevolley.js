@@ -1,6 +1,6 @@
 import { Slime } from './game/slime.js';
 import { Ball } from './game/ball.js';
-import { physics, rules } from '../config.js';
+import { dimensions, physics, rules } from '../config.js';
 import {
   handleKeyDown,
   handleKeyUp,
@@ -40,6 +40,9 @@ import {
   createAndAddStartButton,
   updateStartButtonVisibility
 } from './ui/startButton.js';
+
+import { registerNet, unregisterNet, clearRegistry } from './core/objectRegistry.js';
+
 
 /**
  * Main game controller and initialization
@@ -313,6 +316,19 @@ const initGame = () => {
   const wall = createWall(groundHeight, field.height, field.width);
   gameContainer.appendChild(wall);
 
+  // Calculate net dimensions
+  const netWidth = field.width * dimensions.NET_WIDTH_PERCENT;
+  const netHeight = field.height * dimensions.NET_HEIGHT_PERCENT;
+  const netPosition = field.width / 2;
+
+  // Register the net in the object registry
+  registerNet({
+    position: netPosition,
+    width: netWidth,
+    height: netHeight,
+    element: wall
+  });
+
   // Calculate ground position (where slimes stand)
   const groundPosition = field.height - groundHeight; // Adjust for ground height
 
@@ -369,7 +385,6 @@ const initGame = () => {
   const servingTeam = Math.random() < 0.5 ? 1 : 2;
   gameInstance.newRound(servingTeam);
 };
-
 
 /**
  * Updates game elements when screen is resized
@@ -430,12 +445,16 @@ const handleScore = (data) => {
   }
 };
 
+
 /**
  * Initializes the start screen
  */
 const initStartScreen = () => {
   // Reset game state
   resetGameState();
+
+  // Clear any registered game objects
+  clearRegistry();
 
   // Set up event listeners
   document.addEventListener('keydown', addPlayerKeyHandler);
