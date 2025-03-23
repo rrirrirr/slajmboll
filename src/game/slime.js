@@ -169,8 +169,8 @@ export function Slime(
 
         activeJumpMovement = startDirectionChangeJump(
           actorObject,
-          jumpAcceleration * 6.0,
-          12, // Lock frames
+          jumpAcceleration * 1.38,
+          16, // Lock frames
           24, // total frames
           () => false, // no kill signal
           () => {

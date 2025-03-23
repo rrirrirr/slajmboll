@@ -141,15 +141,12 @@ export const startDirectionChangeJump = (unit, acceleration, lockFrames = 12, to
     totalFrames,
     (frame) => {
       frameCount++;
-      console.log(frameCount, lockFrames)
-      console.log('velocity is:')
-      console.log(unit._velocity)
-
-      // Upward force that decreases linearly
-      const strength = -acceleration * (1 - (frameCount / totalFrames) * 0.1);
+      const strength = acceleration * (1 - (totalFrames / frameCount));
 
       if (frameCount < lockFrames) {
-        unit._velocity.x = 0;
+        const direction = Math.sign(unit._velocity.x);
+        const speedFactor = (frameCount / lockFrames);
+        unit._velocity.x = direction * (speedFactor * 10.0);
       }
 
       return { x: 0, y: strength };
