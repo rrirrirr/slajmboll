@@ -328,7 +328,6 @@ export function createGameOverScreen(winningTeam, onPlayAgain) {
  */
 export function createWall(groundHeight = 40, fieldHeight = 400, fieldWidth = 800) {
   // Calculate net dimensions from config
-  // FIXED: Use fieldWidth instead of fieldHeight for net width calculation
   const netWidth = fieldWidth * dimensions.NET_WIDTH_PERCENT;
   const netHeight = fieldHeight * dimensions.NET_HEIGHT_PERCENT;
 
