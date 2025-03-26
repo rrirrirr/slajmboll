@@ -14,9 +14,19 @@ import {
  * @param {Object} dimensions - Ball dimensions {radius}
  * @param {Object} constraints - Movement constraints
  * @param {Object} field - Field dimensions
+ * @param {Object} [options={}] - Additional ball options
+ * @param {number} [options.bounceFactor] - Custom bounce factor (0-1)
+ * @param {boolean} [options.canBounceOnGround=true] - Whether ball can bounce on ground
  * @returns {Object} Ball object with physics and rendering methods
  */
-export function Ball(position, dimensions, constraints, field) {
+export function Ball(position, dimensions, constraints, field, options = {}) {
+  // Set default options
+  const ballOptions = {
+    bounceFactor: physics.BOUNCE_FACTOR,
+    canBounceOnGround: true,
+    ...options
+  };
+
   // Create events for ball collisions
   const hitGroundEvent = Event('ball hit ground');
   const hitNetEvent = Event('ball hit net');
@@ -41,7 +51,16 @@ export function Ball(position, dimensions, constraints, field) {
   // Subscribe to actor's collision events
   actorObject.groundHitEvent.subscribe(data => {
     hitGroundEvent.emit({ x: actorObject.pos.x, y: actorObject.pos.y });
-    checkScoring();
+
+    // Only check scoring for gameplay balls that can't bounce on ground
+    if (!ballOptions.canBounceOnGround) {
+      checkScoring();
+    }
+
+    // If this ball can't bounce on ground, stop it from bouncing
+    if (!ballOptions.canBounceOnGround) {
+      actorObject._velocity.y = 0;
+    }
   });
 
   actorObject.wallHitEvent.subscribe(direction => {
@@ -165,9 +184,9 @@ export function Ball(position, dimensions, constraints, field) {
     const slimeX = slime.ao.pos.x;
 
     // The slime's collision center Y should be at the geometric center of the half-circle
-    const slimeY = slime.ao.pos.y
+    const slimeY = slime.ao.pos.y;
 
-    const slimeRadius = slime.ao.realRadius
+    const slimeRadius = slime.ao.realRadius;
 
     // Use the physics module to check for collision
     if (circlesCollide(
@@ -203,7 +222,7 @@ export function Ball(position, dimensions, constraints, field) {
       };
 
       // Calculate bounce response using proper vector reflection
-      const slimeBounce = physics.SLIME_BOUNCE_FACTOR || 1.9;
+      const slimeBounce = ballOptions.bounceFactor || physics.SLIME_BOUNCE_FACTOR;
 
       // Calculate dot product of velocity and normal
       const dotProduct = ballVelocity.x * nx + ballVelocity.y * ny;
@@ -312,6 +331,17 @@ export function Ball(position, dimensions, constraints, field) {
     }
   };
 
+  /**
+   * Set the ball color
+   * 
+   * @param {string} color - CSS color string
+   */
+  const setColor = (color) => {
+    if (element) {
+      element.style.backgroundColor = color;
+    }
+  };
+
   return {
     update,
     render,
@@ -322,6 +352,7 @@ export function Ball(position, dimensions, constraints, field) {
     createElement,
     setElement,
     updateAllSlimeDimensions,
+    setColor,
     element,
     ao: actorObject,
     hitGroundEvent,
