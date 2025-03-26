@@ -19,8 +19,6 @@ import {
   waitingScreen,
   createGround
 } from './ui/graphics.js';
-
-// Import game state management
 import {
   gameState,
   GAME_STATES,
@@ -34,13 +32,21 @@ import {
   resetGameState,
   setGameState
 } from './core/gameState.js';
-
-// Import start button functionality
 import {
   createAndAddStartButton,
   updateStartButtonVisibility
 } from './ui/startButton.js';
-
+import { addBallEvent } from './core/inputManager.js';
+import {
+  initBallManager,
+  addBall,
+  setMainBall,
+  getMainBall,
+  updateBalls,
+  renderBalls,
+  cleanupExtraBalls,
+  cleanupAllBalls
+} from './game/ballManager.js';
 import { registerNet, unregisterNet, clearRegistry } from './core/objectRegistry.js';
 
 
@@ -108,6 +114,18 @@ let gameInstance = null;
  * @type {number}
  */
 let lastScoringTime = 0;
+
+/**
+ * Array to track all balls in the game
+ * @type {Array<Object>}
+ */
+let balls = [];
+
+/**
+ * Maximum number of balls allowed at once
+ * @type {number}
+ */
+const MAX_BALLS = 20;
 
 /**
  * Cooldown between scoring events (ms)
@@ -293,9 +311,6 @@ const startGame = () => {
   initGame();
 };
 
-/**
- * Initializes the game for gameplay
- */
 const initGame = () => {
   // Update field dimensions
   const rect = gameContainer.getBoundingClientRect();
@@ -351,7 +366,13 @@ const initGame = () => {
     y: field.height / 3
   };
 
-  // Create ball physics object using the Ball factory function
+  // Clean up any existing balls
+  cleanupAllBalls();
+
+  // Initialize ball manager with updated field dimensions
+  initBallManager(gameContainer, field);
+
+  // Create ball dimensions and constraints
   const ballDimensions = { radius: 0.5 }; // Half the size of a slime
   const ballConstraints = {
     rightBoundry: field.width,
@@ -360,16 +381,20 @@ const initGame = () => {
     maxVelocity: 15
   };
 
-  // Create ball using the Ball factory function
+  // Create the main game ball
   ball = Ball(
     initialBallPosition,
     ballDimensions,
     ballConstraints,
-    field
+    field,
+    { canBounceOnGround: false } // Main game ball cannot bounce on ground
   );
 
   // Set the DOM element
   ball.setElement(ballElement);
+
+  // Register the main ball with the ball manager
+  setMainBall(ball);
 
   // Subscribe to ball collision events
   ball.hitSlimeEvent.subscribe(handleBallSlimeCollision);
@@ -446,9 +471,6 @@ const handleScore = (data) => {
 };
 
 
-/**
- * Initializes the start screen
- */
 const initStartScreen = () => {
   // Reset game state
   resetGameState();
@@ -467,6 +489,9 @@ const initStartScreen = () => {
   while (gameContainer.firstChild) {
     gameContainer.removeChild(gameContainer.firstChild);
   }
+
+  // Initialize ball manager
+  initBallManager(gameContainer, field);
 
   // Add team headers
   const teamHeaders = createTeamHeaders();
@@ -490,6 +515,109 @@ const initStartScreen = () => {
   }
 };
 
+
+/**
+ * Adds a new ball to the game
+ * 
+ * @param {boolean} isBouncingBall - Whether the ball should continuously bounce
+ * @param {number} [size=0.5] - Relative size of the ball (0.5 is half a slime)
+ * @returns {Object|null} The created ball object or null if creation failed
+ */
+const addNewBall = (isBouncingBall = true, size = 0.5) => {
+  // Calculate a random position within the field
+  const randomX = Math.random() * field.width;
+  const randomY = Math.random() * (field.height / 3); // Start in top third
+
+  // Get field dimensions and ground height
+  const fieldWidth = field.width;
+  const groundLevel = field.height - 40; // Default 40px ground height
+
+  // Create dimensions and constraints for the ball
+  const ballDimensions = { radius: size };
+  const ballConstraints = {
+    rightBoundry: fieldWidth,
+    leftBoundry: 0,
+    ground: groundLevel,
+    maxVelocity: 15
+  };
+
+  // Calculate ball size in pixels based on relative size
+  const ballSizePx = Math.round((field.width / 20) * size);
+
+  // Create ball DOM element
+  const ballElement = document.createElement('div');
+  ballElement.classList.add('ball');
+
+  // Generate a random color for the ball
+  const randomColor = `hsl(${Math.random() * 360}, 80%, 60%)`;
+  ballElement.style.backgroundColor = randomColor;
+
+  // Set ball size
+  ballElement.style.width = `${ballSizePx}px`;
+  ballElement.style.height = `${ballSizePx}px`;
+
+  // Add to DOM
+  gameContainer.appendChild(ballElement);
+
+  // Create the ball using the Ball factory with bouncing option
+  const newBall = Ball(
+    { x: randomX, y: randomY },
+    ballDimensions,
+    ballConstraints,
+    field,
+    {
+      canBounceOnGround: isBouncingBall, // Enable continuous bouncing
+      bounceFactor: physics.BOUNCE_FACTOR * 0.9 // Slightly reduced bounce
+    }
+  );
+
+  // Set the DOM element
+  newBall.setElement(ballElement);
+
+  // Give the ball a random initial velocity
+  newBall.ao._velocity.x = (Math.random() * 10) - 5; // -5 to 5
+  newBall.ao._velocity.y = (Math.random() * 4) - 4; // -4 to 0 (mostly downward)
+
+  // Add to the balls array
+  balls.push(newBall);
+
+  return newBall;
+};
+
+
+/**
+ * Cleans up all balls except the main game ball
+ */
+const cleanupBalls = () => {
+  // Remove all balls from DOM except main game ball
+  balls.forEach(ballObj => {
+    if (ballObj !== ball && ballObj && ballObj.element) {
+      ballObj.element.remove();
+    }
+  });
+
+  // Reset to just the main game ball if it exists
+  balls = ball ? [ball] : [];
+};
+
+// Subscribe to add ball event from the input manager
+const ballSubscription = addBallEvent.subscribe(() => {
+  console.log('Adding new ball from event');
+  addNewBall(true);
+});
+
+// Subscribe to state change event to cleanup balls when needed
+const stateSubscription = stateChangeEvent.subscribe((data) => {
+  if (data.type === 'state_change') {
+    if (data.newState === GAME_STATES.GAME_OVER ||
+      data.newState === GAME_STATES.SETUP) {
+      // Clean up balls when game ends or returns to setup
+      cleanupBalls();
+    }
+  }
+});
+
+
 /**
  * Updates game state for one frame
  */
@@ -512,20 +640,18 @@ function update() {
   // Update slimes regardless of state
   slimes.forEach((slime) => slime.update());
 
-  // Only update ball physics and check scoring during PLAYING state
-  if (gameState.currentState === GAME_STATES.PLAYING && ball && typeof ball.update === 'function') {
-    ball.update();
+  // Update all balls using the ball manager
+  updateBalls(slimes);
 
-    // Check for ball-slime collisions
-    slimes.forEach((slime) => {
-      if (slime && typeof ball.checkSlimeCollision === 'function') {
-        ball.checkSlimeCollision(slime);
-      }
-    });
+  // Check scoring condition only for the main game ball during PLAYING state
+  ball = getMainBall(); // Get the current main ball reference
 
-    // Check for scoring condition
+  if (
+    gameState.currentState === GAME_STATES.PLAYING &&
+    ball &&
+    ball.ao
+  ) {
     if (
-      ball.ao &&
       ball.ao.pos.y >= ball.ao.ground - ball.ao.realRadius * 1.2 && // Ball is near ground
       Math.abs(ball.ao._velocity.y) < 0.8 // Ball has low vertical velocity
     ) {
@@ -542,15 +668,8 @@ function update() {
         gameInstance.endRound(scoringSide);
       }
     }
-  } else if (gameState.currentState === GAME_STATES.SCORING ||
-    gameState.currentState === GAME_STATES.COUNTDOWN) {
-    // Still render the ball position during non-playing states
-    if (ball && typeof ball.render === 'function') {
-      ball.render();
-    }
   }
 }
-
 
 /**
  * Renders game elements
@@ -559,10 +678,8 @@ function render() {
   // Render slimes
   slimes.forEach((slime) => slime.render());
 
-  // Render ball if game is playing
-  if (gameState.isPlaying && ball) {
-    ball.render();
-  }
+  // Render all balls
+  renderBalls()
 }
 
 /**
