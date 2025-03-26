@@ -517,75 +517,6 @@ const initStartScreen = () => {
 
 
 /**
- * Adds a new ball to the game
- * 
- * @param {boolean} isBouncingBall - Whether the ball should continuously bounce
- * @param {number} [size=0.5] - Relative size of the ball (0.5 is half a slime)
- * @returns {Object|null} The created ball object or null if creation failed
- */
-const addNewBall = (isBouncingBall = true, size = 0.5) => {
-  // Calculate a random position within the field
-  const randomX = Math.random() * field.width;
-  const randomY = Math.random() * (field.height / 3); // Start in top third
-
-  // Get field dimensions and ground height
-  const fieldWidth = field.width;
-  const groundLevel = field.height - 40; // Default 40px ground height
-
-  // Create dimensions and constraints for the ball
-  const ballDimensions = { radius: size };
-  const ballConstraints = {
-    rightBoundry: fieldWidth,
-    leftBoundry: 0,
-    ground: groundLevel,
-    maxVelocity: 15
-  };
-
-  // Calculate ball size in pixels based on relative size
-  const ballSizePx = Math.round((field.width / 20) * size);
-
-  // Create ball DOM element
-  const ballElement = document.createElement('div');
-  ballElement.classList.add('ball');
-
-  // Generate a random color for the ball
-  const randomColor = `hsl(${Math.random() * 360}, 80%, 60%)`;
-  ballElement.style.backgroundColor = randomColor;
-
-  // Set ball size
-  ballElement.style.width = `${ballSizePx}px`;
-  ballElement.style.height = `${ballSizePx}px`;
-
-  // Add to DOM
-  gameContainer.appendChild(ballElement);
-
-  // Create the ball using the Ball factory with bouncing option
-  const newBall = Ball(
-    { x: randomX, y: randomY },
-    ballDimensions,
-    ballConstraints,
-    field,
-    {
-      canBounceOnGround: isBouncingBall, // Enable continuous bouncing
-      bounceFactor: physics.BOUNCE_FACTOR * 0.9 // Slightly reduced bounce
-    }
-  );
-
-  // Set the DOM element
-  newBall.setElement(ballElement);
-
-  // Give the ball a random initial velocity
-  newBall.ao._velocity.x = (Math.random() * 10) - 5; // -5 to 5
-  newBall.ao._velocity.y = (Math.random() * 4) - 4; // -4 to 0 (mostly downward)
-
-  // Add to the balls array
-  balls.push(newBall);
-
-  return newBall;
-};
-
-
-/**
  * Cleans up all balls except the main game ball
  */
 const cleanupBalls = () => {
@@ -603,7 +534,7 @@ const cleanupBalls = () => {
 // Subscribe to add ball event from the input manager
 const ballSubscription = addBallEvent.subscribe(() => {
   console.log('Adding new ball from event');
-  addNewBall(true);
+  addBall(true);
 });
 
 // Subscribe to state change event to cleanup balls when needed
