@@ -45,6 +45,12 @@ export const keyDownEvent = Event('key_down');
 export const keyUpEvent = Event('key_up');
 
 /**
+ * Event for adding a ball to the game
+ * @type {Object}
+ */
+export const addBallEvent = Event('add_ball');
+
+/**
  * Handles keydown events
  * 
  * @param {KeyboardEvent} event - Keyboard event
@@ -54,6 +60,13 @@ const handleKeyDown = (event) => {
 
   // Skip if in key binding mode
   if (isListeningForKey) return;
+
+  // Check for Ctrl+Shift+Enter to add ball
+  if (code === 'Enter') {
+    addBallEvent.emit();
+    event.preventDefault(); // Prevent default Enter behavior
+    return;
+  }
 
   // Emit global event
   keyDownEvent.emit({ code });
@@ -186,10 +199,10 @@ export const initializeKeyConfigs = () => {
     },
     // Player 2
     {
-      up: 'KeyW',
-      right: 'KeyD',
-      down: 'KeyS',
-      left: 'KeyA'
+      up: 'KeyL',
+      right: 'KeyS',
+      down: 'KeyN',
+      left: 'KeyT'
     },
     // Player 3
     {
