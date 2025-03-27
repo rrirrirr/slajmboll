@@ -675,6 +675,9 @@ function WaitingGame(playerNumber, team = 0, keys, playerIndex) {
   // Get dimensions based on main container
   const rect = mainContainer.getBoundingClientRect();
 
+  const groundHeight = 100;
+  const groundPosition = rect.height - groundHeight;
+
   // Return the game controller with its events and dimensions
   return {
     go: mainContainer, // Use main as the container for slimes
@@ -684,7 +687,7 @@ function WaitingGame(playerNumber, team = 0, keys, playerIndex) {
     roundStart: roundStartEvent,
     roundEnd: roundEndEvent,
     sizeChange: sizeChangeEvent,
-    ground: rect.height - 50,
+    ground: groundPosition,
     leftBoundary: 0,
     rightBoundary: rect.width,
     teamSwitchEvent,
