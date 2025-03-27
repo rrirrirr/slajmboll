@@ -212,8 +212,13 @@ export default function Actor(
         console.log(actualRadius, groundLevel, position.y, nextPos.y)
         // Adjust position so bottom edge is at ground level
         nextPos.y = groundLevel - actualRadius;
-        actorVelocity.y = 0;
 
+        if (actorVelocity.y > 0.1) {  // Only bounce if moving downward with sufficient velocity
+          actorVelocity.y = -actorVelocity.y * physics.BOUNCE_FACTOR;
+        } else {
+          // Stop vertical movement if velocity is too small
+          actorVelocity.y = 0;
+        }
         if (!wasGrounded) {
           // Only emit if just landed
           groundHitEvent.emit();
