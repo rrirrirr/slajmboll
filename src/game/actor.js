@@ -209,7 +209,6 @@ export default function Actor(
     if (frictionless) {
       // For balls (frictionless=true), check if bottom edge is below ground
       if (nextPos.y + actualRadius > groundLevel) {
-        console.log(actualRadius, groundLevel, position.y, nextPos.y)
         // Adjust position so bottom edge is at ground level
         nextPos.y = groundLevel - actualRadius;
 
