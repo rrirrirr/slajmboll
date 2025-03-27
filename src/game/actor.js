@@ -97,7 +97,9 @@ export default function Actor(
    * Actual collision radius in pixels
    * @type {number}
    */
-  let actualRadius = (areaWidth / physics.K) * radius / 2;
+  let actualRadius = frictionless
+    ? (areaWidth / physics.K) * radius
+    : (areaWidth / physics.K) * radius / 2;
 
   /**
    * Right movement boundary
@@ -197,15 +199,36 @@ export default function Actor(
       y: position.y + actorVelocity.y
     };
 
-    let wasGrounded = position.y >= groundLevel;
+    // Check if entity was on ground using appropriate logic based on entity type
+    // For frictionless entities (balls), use center + radius, otherwise use position directly
+    let wasGrounded = frictionless
+      ? position.y + actualRadius >= groundLevel
+      : position.y >= groundLevel;
 
-    // Handle ground collision
-    if (nextPos.y > groundLevel) {
-      nextPos.y = groundLevel;
-      actorVelocity.y = 0;
-      if (!wasGrounded) {
-        // Only emit if just landed
-        groundHitEvent.emit();
+    // Handle ground collision - different logic based on entity type
+    if (frictionless) {
+      // For balls (frictionless=true), check if bottom edge is below ground
+      if (nextPos.y + actualRadius > groundLevel) {
+        console.log(actualRadius, groundLevel, position.y, nextPos.y)
+        // Adjust position so bottom edge is at ground level
+        nextPos.y = groundLevel - actualRadius;
+        actorVelocity.y = 0;
+
+        if (!wasGrounded) {
+          // Only emit if just landed
+          groundHitEvent.emit();
+        }
+      }
+    } else {
+      // For slimes, check if position is below ground (position is already bottom edge)
+      if (nextPos.y > groundLevel) {
+        nextPos.y = groundLevel;
+        actorVelocity.y = 0;
+
+        if (!wasGrounded) {
+          // Only emit if just landed
+          groundHitEvent.emit();
+        }
       }
     }
 

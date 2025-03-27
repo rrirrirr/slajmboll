@@ -27,6 +27,8 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
     ...options
   };
 
+  const fieldDimensions = field;
+
   // Create events for ball collisions
   const hitGroundEvent = Event('ball hit ground');
   const hitNetEvent = Event('ball hit net');
@@ -47,6 +49,24 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
     0,    // No team
     true  // Set to frictionless so ball doesn't slow down
   );
+
+  let ballSize = calculateBallSize();
+
+  /**
+    * Calculates the ball size based on field dimensions
+    * 
+    * @returns {number} The calculated ball size in pixels
+    */
+  function calculateBallSize() {
+    if (!fieldDimensions || !fieldDimensions.width) return 40; // fallback
+
+    // Use same scaling logic as slimes, based on field width
+    const areaWidth = fieldDimensions.width;
+    const scaledSize = (areaWidth / physics.K) * dimensions.radius;
+
+    // Return diameter (radius * 2)
+    return scaledSize * 2;
+  }
 
   // Subscribe to actor's collision events
   actorObject.groundHitEvent.subscribe(data => {
@@ -74,7 +94,7 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
   });
 
   // Ball size (diameter) in pixels
-  let ballSize = 40; // Default size
+  // let ballSize = 40; // Default size
 
   /**
    * Reference to the ball DOM element
@@ -90,11 +110,23 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
   const setElement = (el) => {
     element = el;
     if (element) {
-      const width = parseInt(element.style.width);
-      if (width) {
-        ballSize = width;
-      }
+      updateBallSize(fieldDimensions);
     }
+  };
+
+  /**
+   * Handles field resize events
+   * 
+   * @param {Object} newFieldDimensions - New field dimensions
+   */
+  const handleResize = (newFieldDimensions) => {
+    // Update field dimensions reference
+    if (newFieldDimensions) {
+      fieldDimensions = newFieldDimensions;
+    }
+
+    // Update ball size
+    updateBallSize(fieldDimensions);
   };
 
   /**
@@ -137,6 +169,32 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
         slimeDimensionsCache.set(slimeId, { width, height });
       }
     }
+  };
+
+
+  /**
+   * Updates the ball size based on field dimensions
+   * 
+   * @param {Object} fieldDimensions - Current field dimensions
+   */
+  const updateBallSize = (fieldDimensions) => {
+    if (!fieldDimensions || !fieldDimensions.width) return;
+
+    // Use same scaling logic as slimes, based on field width
+    const areaWidth = fieldDimensions.width;
+    const scaledSize = (areaWidth / physics.K) * dimensions.radius;
+
+    // Update ball size
+    ballSize = scaledSize * 2; // Diameter = radius * 2
+
+    // Update DOM element if it exists
+    if (element) {
+      element.style.width = `${ballSize}px`;
+      element.style.height = `${ballSize}px`;
+    }
+
+    // Return new size for reference
+    return ballSize;
   };
 
   /**
@@ -352,6 +410,7 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
     createElement,
     setElement,
     updateAllSlimeDimensions,
+    handleResize,
     setColor,
     element,
     ao: actorObject,

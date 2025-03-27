@@ -56,9 +56,39 @@ export const addBall = (isBouncingBall = true, size = 0.5) => {
     return null;
   }
 
-  // Calculate a random position within the field
-  const randomX = Math.random() * fieldDimensions.width;
-  const randomY = Math.random() * (fieldDimensions.height / 3); // Start in top third
+  // Update field dimensions based on current container size
+  const containerRect = gameContainer.getBoundingClientRect();
+  fieldDimensions.width = containerRect.width;
+  fieldDimensions.height = containerRect.height;
+
+  // Calculate a random position WITHIN the visible field area with more padding
+  const padding = 80; // Increased padding to ensure visibility
+  const randomX = padding + Math.random() * (fieldDimensions.width - 2 * padding);
+  const randomY = padding + Math.random() * (fieldDimensions.height / 2 - padding);
+
+  console.log(`Creating ball at position (${randomX}, ${randomY})`);
+
+  // Fixed ball size
+  const ballSizePx = Math.round((fieldDimensions.width / physics.K) * size * 2);
+
+  // Create ball DOM element
+  const ballElement = document.createElement('div');
+  ballElement.classList.add('ball');
+
+  // Generate a random color for the ball
+  const randomColor = `hsl(${Math.random() * 360}, 80%, 60%)`;
+  ballElement.style.backgroundColor = randomColor;
+
+  // Set fixed ball size
+  ballElement.style.width = `${ballSizePx}px`;
+  ballElement.style.height = `${ballSizePx}px`;
+
+  // Set initial position directly on the DOM element
+  ballElement.style.left = `${randomX - ballSizePx / 2}px`;
+  ballElement.style.top = `${randomY - ballSizePx / 2}px`;
+
+  // Add to DOM
+  gameContainer.appendChild(ballElement);
 
   // Ground level (default to 40px from bottom)
   const groundLevel = fieldDimensions.height - 40;
@@ -72,47 +102,33 @@ export const addBall = (isBouncingBall = true, size = 0.5) => {
     maxVelocity: 15
   };
 
-  // Calculate ball size in pixels based on relative size
-  const ballSizePx = Math.round((fieldDimensions.width / 20) * size);
-
-  // Create ball DOM element
-  const ballElement = document.createElement('div');
-  ballElement.classList.add('ball');
-
-  // Generate a random color for the ball
-  const randomColor = `hsl(${Math.random() * 360}, 80%, 60%)`;
-  ballElement.style.backgroundColor = randomColor;
-
-  // Set ball size
-  ballElement.style.width = `${ballSizePx}px`;
-  ballElement.style.height = `${ballSizePx}px`;
-
-  // Add to DOM
-  gameContainer.appendChild(ballElement);
-
-  // Create the ball using the Ball factory with bouncing option
+  // Create the ball with the proper physics
   const newBall = Ball(
-    { x: randomX, y: randomY },
+    { x: randomX, y: randomY }, // Initial position
     ballDimensions,
     ballConstraints,
     fieldDimensions,
     {
-      canBounceOnGround: isBouncingBall, // Enable continuous bouncing
-      bounceFactor: physics.BOUNCE_FACTOR * 0.9 // Slightly reduced bounce
+      canBounceOnGround: isBouncingBall,
+      bounceFactor: physics.BOUNCE_FACTOR * 0.9
     }
   );
 
   // Set the DOM element
   newBall.setElement(ballElement);
 
-  // Give the ball a random initial velocity
-  newBall.ao._velocity.x = (Math.random() * 10) - 5; // -5 to 5
-  newBall.ao._velocity.y = (Math.random() * 4) - 4; // -4 to 0 (mostly downward)
+  // Give the ball a random initial velocity - gentler for visibility
+  newBall.ao._velocity.x = (Math.random() * 4) - 2; // -2 to 2
+  newBall.ao._velocity.y = Math.random() * -2; // 0 to -2 (upward)
+
+  // Ensure gravity is applied (if needed)
+  if (isBouncingBall) {
+    newBall.ao._downwardAcceleration = physics.GRAVITY;
+  }
 
   // Add to the balls array
   balls.push(newBall);
 
-  console.log(`Added new ball. Total balls: ${balls.length}`);
   return newBall;
 };
 
