@@ -311,7 +311,9 @@ const startGame = () => {
   initGame();
 };
 
-const initGame = () => {
+
+
+function initGame() {
   // Update field dimensions
   const rect = gameContainer.getBoundingClientRect();
   field.width = rect.width;
@@ -325,7 +327,22 @@ const initGame = () => {
   // Create ground element first (so it's under everything else)
   const groundElement = createGround();
   gameContainer.appendChild(groundElement);
-  const groundHeight = 40; // Match the height defined in createGround
+  const groundHeight = 40; // Match the height defined in CSS
+
+  // Calculate ground position (where slimes stand)
+  const groundPosition = field.height - groundHeight;
+
+  // Register the ground in the object registry for consistent reference
+  // Clear existing registry first to avoid conflicts
+  clearRegistry();
+
+  // Register the ground in the registry for consistency
+  registerGround({
+    height: groundPosition,
+    element: groundElement
+  });
+
+  console.log(`initGame: registered ground at height ${groundPosition}`);
 
   // Create center wall/net with improved height
   const wall = createWall(groundHeight, field.height, field.width);
@@ -343,9 +360,6 @@ const initGame = () => {
     height: netHeight,
     element: wall
   });
-
-  // Calculate ground position (where slimes stand)
-  const groundPosition = field.height - groundHeight; // Adjust for ground height
 
   // Create ball DOM element
   const ballElement = createBall();
@@ -409,7 +423,8 @@ const initGame = () => {
   // Start with random team serving
   const servingTeam = Math.random() < 0.5 ? 1 : 2;
   gameInstance.newRound(servingTeam);
-};
+}
+
 
 /**
  * Updates game elements when screen is resized

@@ -11,7 +11,8 @@ import {
   setActiveCountdown,
   gameState
 } from '../core/gameState.js';
-import { waitingScreen } from '../ui/graphics.js';
+import { createGround, waitingScreen } from '../ui/graphics.js';
+import { clearRegistry, registerGround } from '../core/objectRegistry.js';
 
 /**
  * Creates a global event for game additions
@@ -677,9 +678,36 @@ function WaitingGame(playerNumber, team = 0, keys, playerIndex) {
 
   const groundHeight = 100;
   const groundPosition = rect.height - groundHeight;
+  // Check if ground exists and create if needed
+  let groundEl = document.getElementById('ground');
+  if (!groundEl) {
+    groundEl = document.createElement('div');
+    groundEl.id = 'ground';
+    groundEl.style.position = 'absolute';
+    groundEl.style.bottom = '0';
+    groundEl.style.left = '0';
+    groundEl.style.width = '100%';
+    groundEl.style.height = groundHeight + 'px';
+    groundEl.style.backgroundColor = '#8B4513';
+    groundEl.style.borderTop = '2px solid #654321';
+    groundEl.style.zIndex = '30';
+    groundEl.style.backgroundImage = 'repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(0, 0, 0, 0.1) 20px, rgba(0, 0, 0, 0.1) 40px)';
 
-  // Return the game controller with its events and dimensions
-  return {
+    mainContainer.appendChild(groundEl);
+  }
+
+  // Register ground in registry for consistency
+  if (typeof clearRegistry === 'function' && typeof registerGround === 'function') {
+    clearRegistry();
+    registerGround({
+      height: groundPosition,
+      element: groundEl
+    });
+    console.log(`WaitingGame: registered ground at height ${groundPosition}`);
+  }
+
+  // Create return object
+  const gameController = {
     go: mainContainer, // Use main as the container for slimes
     screen,
     gameStart: gameStartEvent,
@@ -693,6 +721,9 @@ function WaitingGame(playerNumber, team = 0, keys, playerIndex) {
     teamSwitchEvent,
     playerIndex
   };
+
+  return gameController;
 }
+
 
 export { Game, WaitingGame };

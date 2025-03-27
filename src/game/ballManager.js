@@ -1,5 +1,6 @@
 import { Ball } from './ball.js';
 import { physics } from '../../config.js';
+import { gameObjects } from '../core/objectRegistry.js';
 
 /**
  * Ball manager module for handling multiple balls
@@ -90,8 +91,12 @@ export const addBall = (isBouncingBall = true, size = 0.5) => {
   // Add to DOM
   gameContainer.appendChild(ballElement);
 
-  // Ground level (default to 40px from bottom)
-  const groundLevel = fieldDimensions.height - 40;
+  // Use ground level from registry if available
+  let groundLevel = fieldDimensions.height - 40; // Default fallback
+  console.log(gameObjects)
+  if (gameObjects.ground && gameObjects.ground.height !== undefined) {
+    groundLevel = gameObjects.ground.height;
+  }
 
   // Create dimensions and constraints for the ball
   const ballDimensions = { radius: size };
@@ -130,7 +135,7 @@ export const addBall = (isBouncingBall = true, size = 0.5) => {
   balls.push(newBall);
 
   return newBall;
-};
+}
 
 /**
  * Sets the main game ball
