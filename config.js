@@ -8,7 +8,7 @@
  */
 export const physics = {
   /** Gravity acceleration value */
-  GRAVITY: 0.9,
+  GRAVITY: 0.2,
   /** Maximum falling speed */
   TERMINAL_VELOCITY: 12.5,
   /** Base maximum horizontal velocity */
@@ -18,7 +18,7 @@ export const physics = {
   /** Ball bounce energy retention factor (0.0 to 1.0) */
   BOUNCE_FACTOR: 1.0,
   /** Slime-ball collision elasticity */
-  SLIME_BOUNCE_FACTOR: 1.9,
+  SLIME_BOUNCE_FACTOR: 1.2,
   /** Net bounce boost factor - vertical speed added after net collision */
   NET_BOUNCE_BOOST: 0.15,
 };

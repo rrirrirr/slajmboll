@@ -392,7 +392,7 @@ function initGame() {
     rightBoundry: field.width,
     leftBoundry: 0,
     ground: groundPosition, // Use adjusted ground position
-    maxVelocity: 15
+    maxVelocity: 55
   };
 
   // Create the main game ball

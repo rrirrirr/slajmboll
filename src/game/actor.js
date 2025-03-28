@@ -126,6 +126,12 @@ export default function Actor(
   let hasCollided = false;
 
   /**
+   * Counter for frames to keep collision flag active
+   * @type {number}
+   */
+  let collisionFrameCount = 2;
+
+  /**
    * Flag indicating if the entity has no friction
    * @type {boolean}
    */
@@ -213,7 +219,7 @@ export default function Actor(
         nextPos.y = groundLevel - actualRadius;
 
         if (actorVelocity.y > 0.1) {  // Only bounce if moving downward with sufficient velocity
-          actorVelocity.y = -actorVelocity.y * physics.BOUNCE_FACTOR;
+          actorVelocity.y = -actorVelocity.y * 100 * physics.BOUNCE_FACTOR;
         } else {
           // Stop vertical movement if velocity is too small
           actorVelocity.y = 0;
@@ -274,7 +280,7 @@ export default function Actor(
             // Apply bouncing effect for the ball
             actorVelocity.x = -Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
             // Add slight upward boost for the ball
-            actorVelocity.y -= Math.abs(actorVelocity.x) * 0.15;
+            actorVelocity.y -= Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
 
             netHitEvent.emit(-1);
           } else {
@@ -284,7 +290,7 @@ export default function Actor(
             // Apply bouncing effect for the ball
             actorVelocity.x = Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
             // Add slight upward boost for the ball
-            actorVelocity.y -= Math.abs(actorVelocity.x) * 0.15;
+            actorVelocity.y -= Math.abs(actorVelocity.x) * physics.BOUNCE_FACTOR;
 
             netHitEvent.emit(1);
           }
@@ -340,9 +346,6 @@ export default function Actor(
     position.y = nextPos.y;
   }
 
-  /**
-   * Update velocity with physics rules (drag, gravity, limits)
-   */
   function updateVelocity() {
     // Only apply deceleration (drag) if the entity has friction
     if (hasFriction) {
@@ -373,8 +376,14 @@ export default function Actor(
       }
     }
 
-    // Reset collision flag for next frame
-    hasCollided = false;
+    // Handle collision frame counting
+    if (hasCollided) {
+      collisionFrameCount--;
+      if (collisionFrameCount <= 0) {
+        hasCollided = false;
+        collisionFrameCount = 2; // Reset for next collision
+      }
+    }
   }
 
   /**
@@ -477,6 +486,19 @@ export default function Actor(
         return false;
       }
     });
+  }
+
+  /**
+    * Set collision flag for this frame
+    * 
+    * @param {boolean} value - Whether a collision occurred
+    * @param {number} [frames=2] - Number of frames to keep flag active
+    */
+  function setCollisionFlag(value = true, frames = 2) {
+    hasCollided = value;
+    if (value) {
+      collisionFrameCount = frames;
+    }
   }
 
   /**

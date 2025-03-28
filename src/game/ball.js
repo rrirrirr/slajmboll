@@ -29,6 +29,12 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
 
   const fieldDimensions = field;
 
+  /**
+   * Track recent collisions to prevent ball from getting stuck to slimes
+   * @type {Map<string, number>}
+   */
+  const recentCollisions = new Map();
+
   // Create events for ball collisions
   const hitGroundEvent = Event('ball hit ground');
   const hitNetEvent = Event('ball hit net');
@@ -217,7 +223,7 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
   };
 
   /**
-   * Simple circle-to-circle collision detection with a slime
+   * Simple circle-to-circle collision detection with a slime using billiard physics
    * 
    * @param {Object} slime - Slime object to check collision with
    * @returns {boolean} True if collision occurred
@@ -253,69 +259,119 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
       { x: slimeX, y: slimeY },
       slimeRadius
     )) {
-      // Calculate distance for collision response
-      const distance = calculateDistance(
-        { x: ballX, y: ballY },
-        { x: slimeX, y: slimeY }
-      );
-
-      // Calculate collision normal
-      const nx = (ballX - slimeX) / distance;
-      const ny = (ballY - slimeY) / distance;
-
-      // Move ball outside slime
-      actorObject.pos.x = slimeX + nx * (ballRadius + slimeRadius);
-      actorObject.pos.y = slimeY + ny * (ballRadius + slimeRadius);
-
-      // Get ball velocity
+      // Get velocities
       const ballVelocity = {
         x: actorObject._velocity.x,
         y: actorObject._velocity.y
       };
 
-      // Get slime velocity
       const slimeVelocity = {
         x: slime.ao._velocity ? slime.ao._velocity.x : 0,
         y: slime.ao._velocity ? slime.ao._velocity.y : 0
       };
 
-      // Calculate bounce response using proper vector reflection
-      const slimeBounce = ballOptions.bounceFactor || physics.SLIME_BOUNCE_FACTOR;
+      // Get masses - we'll treat slime as heavier than the ball
+      const ballMass = 1;
+      const slimeMass = 5; // Slime is 5x the ball's mass
 
-      // Calculate dot product of velocity and normal
-      const dotProduct = ballVelocity.x * nx + ballVelocity.y * ny;
+      // Get positions
+      const ballPos = { x: ballX, y: ballY };
+      const slimePos = { x: slimeX, y: slimeY };
 
-      // Only bounce if ball is moving toward slime
-      if (dotProduct < 0) {
-        // Properly reflect the velocity vector to preserve horizontal speed
-        // Use the reflection formula: v' = v - 2(v·n)n, then multiply by bounce factor
-        actorObject._velocity.x = ballVelocity.x - 2 * dotProduct * nx * slimeBounce;
-        actorObject._velocity.y = ballVelocity.y - 2 * dotProduct * ny * slimeBounce;
+      // Calculate distance and normal vector
+      const distance = calculateDistance(ballPos, slimePos);
+      const nx = (ballX - slimeX) / distance;
+      const ny = (ballY - slimeY) / distance;
 
-        // Add additional "spin" based on slime's horizontal velocity
-        if (slime.ao._velocity) {
-          actorObject._velocity.x += slime.ao._velocity.x * 0.8;
-        }
+      // Calculate new velocities using billiard physics (conservation of momentum & energy)
+      const newVelocities = billiardCollision(
+        ballPos, ballVelocity, ballMass,
+        slimePos, slimeVelocity, slimeMass,
+        physics.SLIME_BOUNCE_FACTOR
+      );
 
-        // Set the collision flag to bypass velocity capping for this frame
-        if (typeof actorObject.setCollisionFlag === 'function') {
-          actorObject.setCollisionFlag(true);
-        }
+      // Apply new velocities
+      actorObject._velocity.x = newVelocities.v1.x;
+      actorObject._velocity.y = newVelocities.v1.y;
 
-        // Emit collision event
-        hitSlimeEvent.emit({
-          slimeId: slime.slimeId,
-          teamNumber: slime.teamNumber,
-          velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y },
-          position: { x: actorObject.pos.x, y: actorObject.pos.y }
-        });
+      // Important: Properly separate the objects after collision to prevent multiple collision detections
+      // Move ball away from slime along collision normal (with a small extra buffer)
+      actorObject.pos.x = slimeX + nx * (ballRadius + slimeRadius + 1);
+      actorObject.pos.y = slimeY + ny * (ballRadius + slimeRadius + 1);
+
+      // Set the collision flag to bypass velocity capping
+      if (typeof actorObject.setCollisionFlag === 'function') {
+        actorObject.setCollisionFlag(true, 2);
       }
+
+      // Emit collision event
+      hitSlimeEvent.emit({
+        slimeId: slime.slimeId,
+        teamNumber: slime.teamNumber,
+        velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y },
+        position: { x: actorObject.pos.x, y: actorObject.pos.y }
+      });
 
       return true;
     }
 
     return false;
   };
+
+  /**
+   * Calculates collision response using billiard physics (conservation of momentum and energy)
+   * 
+   * @param {Object} pos1 - Position of first object
+   * @param {Object} vel1 - Velocity of first object
+   * @param {number} mass1 - Mass of first object
+   * @param {Object} pos2 - Position of second object
+   * @param {Object} vel2 - Velocity of second object
+   * @param {number} mass2 - Mass of second object
+   * @param {number} [restitution=1] - Coefficient of restitution (1=elastic, <1=inelastic)
+   * @returns {Object} New velocities for both objects
+   */
+  function billiardCollision(pos1, vel1, mass1, pos2, vel2, mass2, restitution = 1) {
+    // Calculate distance and normal vector
+    const dx = pos1.x - pos2.x;
+    const dy = pos1.y - pos2.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Normalize the collision normal
+    const nx = dx / distance;
+    const ny = dy / distance;
+
+    // Calculate relative velocity
+    const dvx = vel1.x - vel2.x;
+    const dvy = vel1.y - vel2.y;
+
+    // Calculate velocity along the normal
+    const velocityAlongNormal = dvx * nx + dvy * ny;
+
+    // Early exit if objects are moving away from each other
+    if (velocityAlongNormal > 0) {
+      return { v1: vel1, v2: vel2 };
+    }
+
+    // Calculate impulse scalar
+    const impulseFactor = (-(1 + restitution) * velocityAlongNormal) /
+      (1 / mass1 + 1 / mass2);
+
+    // Apply impulse to velocities along normal
+    const impulseX = impulseFactor * nx;
+    const impulseY = impulseFactor * ny;
+
+    // Calculate final velocities
+    return {
+      v1: {
+        x: vel1.x + (impulseX / mass1),
+        y: vel1.y + (impulseY / mass1)
+      },
+      v2: {
+        x: vel2.x - (impulseX / mass2),
+        y: vel2.y - (impulseY / mass2)
+      }
+    };
+  }
 
   /**
    * Forces an update of the slime dimensions cache
