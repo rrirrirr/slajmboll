@@ -14,13 +14,17 @@ export const physics = {
   /** Base maximum horizontal velocity */
   MAX_VELOCITY: 10,
   /** Scaling constant for sizes and speeds */
-  K: 13,
+  K: 23,
   /** Ball bounce energy retention factor (0.0 to 1.0) */
   BOUNCE_FACTOR: 1.0,
   /** Slime-ball collision elasticity */
   SLIME_BOUNCE_FACTOR: 1.2,
   /** Net bounce boost factor - vertical speed added after net collision */
   NET_BOUNCE_BOOST: 0.15,
+  /** Ground friction factor (0 = max friction, 1 = no friction) */
+  GROUND_FRICTION: 0.85,
+  /** Air friction factor (0 = max friction, 1 = no friction) */
+  AIR_FRICTION: 0.75,
 };
 
 /**
@@ -60,9 +64,9 @@ export const movement = {
   /** Base run acceleration */
   RUN_ACCELERATION: 0.02,
   /** Jump acceleration multiplier */
-  JUMP_ACCELERATION: 0.3,
+  JUMP_ACCELERATION: 0.6,
   /** Direction change bonus acceleration */
-  DIRECTION_CHANGE_BONUS: 2.0,
+  DIRECTION_CHANGE_BONUS: 1.0,
   /** Wall jump cooldown (frames) */
   WALL_JUMP_COOLDOWN: 8,
   /** Direction change jump window (frames) */

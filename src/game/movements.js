@@ -56,7 +56,7 @@ function Movement(movementFn) {
  * @returns {MovementObject} Jumping movement
  */
 export const startJump = (acceleration, killSignal, end) => {
-  const jumpPower = acceleration * 10;
+  const jumpPower = acceleration;
 
   let frameCount = 0;
   const maxFrames = 20;

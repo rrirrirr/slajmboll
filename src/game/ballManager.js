@@ -104,7 +104,7 @@ export const addBall = (isBouncingBall = true, size = 0.5) => {
     rightBoundry: fieldDimensions.width,
     leftBoundry: 0,
     ground: groundLevel,
-    maxVelocity: 15
+    maxVelocity: 105
   };
 
   // Create the ball with the proper physics

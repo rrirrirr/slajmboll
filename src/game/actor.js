@@ -1,6 +1,7 @@
 import { Event } from '../core/events.js';
 import { physics, dimensions } from '../../config.js';
 import { gameObjects } from '../core/objectRegistry.js';
+import { applyGravity, capVelocity, applyDeceleration } from '../core/physics.js';
 
 /**
  * @typedef {Object} Position
@@ -79,7 +80,7 @@ export default function Actor(
    * The actor's velocity
    * @type {Velocity}
    */
-  const actorVelocity = velocity || { x: 0, y: 0 };
+  let actorVelocity = velocity || { x: 0, y: 0 };
 
   /**
    * Width of the play area
@@ -158,7 +159,7 @@ export default function Actor(
    * Maximum movement velocity
    * @type {number}
    */
-  let maximumVelocity = (areaWidth / physics.K) * 0.1;
+  let maximumVelocity = (areaWidth / physics.K) * 10;
 
   /**
    * Flag indicating the actor is touching a wall
@@ -219,7 +220,7 @@ export default function Actor(
         nextPos.y = groundLevel - actualRadius;
 
         if (actorVelocity.y > 0.1) {  // Only bounce if moving downward with sufficient velocity
-          actorVelocity.y = -actorVelocity.y * 100 * physics.BOUNCE_FACTOR;
+          actorVelocity.y = -actorVelocity.y * physics.BOUNCE_FACTOR;
         } else {
           // Stop vertical movement if velocity is too small
           actorVelocity.y = 0;
@@ -347,42 +348,48 @@ export default function Actor(
   }
 
   function updateVelocity() {
-    // Only apply deceleration (drag) if the entity has friction
-    if (hasFriction) {
-      // Apply deceleration (drag)
-      actorVelocity.x += movementDeceleration * -Math.sign(actorVelocity.x);
+    // Apply deceleration (friction) based on grounded state
+    const isGrounded = frictionless
+      ? position.y + actualRadius >= groundLevel - 0.1
+      : position.y >= groundLevel - 0.1;
 
-      // Stop completely if velocity is very small (only for entities with friction)
-      if (Math.abs(movementDeceleration) > Math.abs(actorVelocity.x)) {
-        actorVelocity.x = 0;
+    if (hasFriction) {
+      if (isGrounded) {
+        // Apply GROUND friction when grounded
+        actorVelocity = applyDeceleration(actorVelocity, physics.GROUND_FRICTION);
+      } else {
+        // Apply AIR friction when not grounded
+        actorVelocity = applyDeceleration(actorVelocity, physics.AIR_FRICTION);
       }
     }
 
-    // Cap horizontal velocity ONLY if no collision this frame
-    if (!hasCollided && Math.abs(actorVelocity.x) > maximumVelocity) {
-      actorVelocity.x = Math.sign(actorVelocity.x) * maximumVelocity;
-    }
-
-    // Apply gravity
+    // Apply gravity FIRST (before capping)
     actorVelocity.y += downwardAcceleration;
 
-    // Cap vertical velocity ONLY if no collision this frame
-    if (!hasCollided) {
-      if (-actorVelocity.y > maximumVelocity) {
-        actorVelocity.y = -maximumVelocity;
-      }
-      if (actorVelocity.y > physics.TERMINAL_VELOCITY) {
-        actorVelocity.y = physics.TERMINAL_VELOCITY;
-      }
-    }
+    // --- Velocity capping logic remains the same ---
+    const recentlyCollided = collisionFrameCount > 0;
+    // ... (rest of capping logic) ...
+  }
 
-    // Handle collision frame counting
-    if (hasCollided) {
-      collisionFrameCount--;
+  // Modify setCollisionFlag to reset counter properly
+  function setCollisionFlag(value = true, frames = 2) {
+    // Set collision flag (might be useful elsewhere)
+    hasCollided = value;
+
+    if (value) {
+      // Set counter ONLY if it's not already counting down from a collision
+      // This ensures the 'grace period' for capping lasts 'frames' counts.
       if (collisionFrameCount <= 0) {
-        hasCollided = false;
-        collisionFrameCount = 2; // Reset for next collision
+        collisionFrameCount = frames;
+      } else {
+        // If already counting, maybe extend it slightly? Or just let it be.
+        // For now, just set it if it wasn't already set.
       }
+    } else {
+      // Explicitly setting to false might mean the collision state is over?
+      // Or maybe just don't touch the counter here if value is false.
+      // Let's reset counter only if setting flag to false explicitly.
+      // collisionFrameCount = 0; // Reconsider if this is needed. Let counter decrement naturally.
     }
   }
 

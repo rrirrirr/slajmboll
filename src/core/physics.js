@@ -69,19 +69,16 @@ export const applyGravity = (velocity, gravity = physics.GRAVITY) => {
 
 /**
  * Applies deceleration (friction) to horizontal movement
- * 
+ *
  * @param {Velocity} velocity - Current velocity
- * @param {number} deceleration - Deceleration amount
- * @returns {Velocity} Updated velocity with deceleration applied
+ * @param {number} frictionFactor - Friction factor (e.g., 0.85). Multiplies velocity.
+ * @returns {Velocity} Updated velocity with friction applied
  */
-export const applyDeceleration = (velocity, deceleration) => {
-  let newVelocityX = velocity.x;
+export const applyDeceleration = (velocity, frictionFactor) => {
+  let newVelocityX = velocity.x * frictionFactor;
 
-  // Apply deceleration in opposite direction of movement
-  newVelocityX += deceleration * -Math.sign(newVelocityX);
-
-  // Stop completely if velocity is very small
-  if (Math.abs(deceleration) > Math.abs(newVelocityX)) {
+  // Stop completely if velocity is very small to prevent endless sliding
+  if (Math.abs(newVelocityX) < 0.1) {
     newVelocityX = 0;
   }
 

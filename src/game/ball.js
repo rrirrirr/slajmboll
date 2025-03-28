@@ -223,11 +223,11 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
   };
 
   /**
-   * Simple circle-to-circle collision detection with a slime using billiard physics
-   * 
-   * @param {Object} slime - Slime object to check collision with
-   * @returns {boolean} True if collision occurred
-   */
+     * Simple circle-to-circle collision detection with a slime using billiard physics
+     *
+     * @param {Object} slime - Slime object to check collision with
+     * @returns {boolean} True if collision occurred
+     */
   const checkSlimeCollision = (slime) => {
     if (!slime || !slime.ao) return false;
 
@@ -244,12 +244,9 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
     const slimeDimensions = slimeDimensionsCache.get(slime.slimeId);
     if (!slimeDimensions) return false;
 
-    // The slime's center X is at center bottom
+    // Slime position and radius
     const slimeX = slime.ao.pos.x;
-
-    // The slime's collision center Y should be at the geometric center of the half-circle
     const slimeY = slime.ao.pos.y;
-
     const slimeRadius = slime.ao.realRadius;
 
     // Use the physics module to check for collision
@@ -260,17 +257,10 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
       slimeRadius
     )) {
       // Get velocities
-      const ballVelocity = {
-        x: actorObject._velocity.x,
-        y: actorObject._velocity.y
-      };
+      const ballVelocity = { ...actorObject._velocity }; // Use copy
+      const slimeVelocity = { ...(slime.ao._velocity || { x: 0, y: 0 }) }; // Use copy, provide default
 
-      const slimeVelocity = {
-        x: slime.ao._velocity ? slime.ao._velocity.x : 0,
-        y: slime.ao._velocity ? slime.ao._velocity.y : 0
-      };
-
-      // Get masses - we'll treat slime as heavier than the ball
+      // Get masses
       const ballMass = 1;
       const slimeMass = 5; // Slime is 5x the ball's mass
 
@@ -278,7 +268,7 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
       const ballPos = { x: ballX, y: ballY };
       const slimePos = { x: slimeX, y: slimeY };
 
-      // Calculate distance and normal vector
+      // Calculate distance and normal vector (needed for separation)
       const distance = calculateDistance(ballPos, slimePos);
       const nx = (ballX - slimeX) / distance;
       const ny = (ballY - slimeY) / distance;
@@ -290,16 +280,46 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
         physics.SLIME_BOUNCE_FACTOR
       );
 
-      // Apply new velocities
+      // --- APPLY VELOCITIES TO BOTH OBJECTS ---
+      // Apply to Ball
       actorObject._velocity.x = newVelocities.v1.x;
       actorObject._velocity.y = newVelocities.v1.y;
 
+      // Apply to Slime (assuming slime.ao is the actor object for the slime)
+      if (slime.ao && slime.ao._velocity) {
+        slime.ao._velocity.x = newVelocities.v2.x;
+        slime.ao._velocity.y = newVelocities.v2.y;
+        // Also set collision flag for slime to prevent its own immediate capping
+        if (typeof slime.ao.setCollisionFlag === 'function') {
+          slime.ao.setCollisionFlag(true, 2);
+        }
+        console.log(`Applied velocity to Slime ${slime.slimeId}: { x: ${newVelocities.v2.x.toFixed(2)}, y: ${newVelocities.v2.y.toFixed(2)} }`); // Debug log
+      } else {
+        console.warn("Could not apply post-collision velocity to slime - slime.ao or slime.ao._velocity missing.");
+      }
+      // --- END APPLY VELOCITIES ---
+
+
       // Important: Properly separate the objects after collision to prevent multiple collision detections
       // Move ball away from slime along collision normal (with a small extra buffer)
-      actorObject.pos.x = slimeX + nx * (ballRadius + slimeRadius + 1);
-      actorObject.pos.y = slimeY + ny * (ballRadius + slimeRadius + 1);
+      const overlap = (ballRadius + slimeRadius) - distance;
+      const separationBuffer = 1; // Small buffer to prevent immediate re-collision
+      if (overlap > 0) {
+        const separationX = nx * (overlap + separationBuffer);
+        const separationY = ny * (overlap + separationBuffer);
 
-      // Set the collision flag to bypass velocity capping
+        // Move the ball by half the separation, and slime by the other half (weighted by inverse mass?)
+        // Simpler: Just move the ball out fully for now.
+        actorObject.pos.x += separationX;
+        actorObject.pos.y += separationY;
+
+        // Optionally, move the slime slightly too
+        slime.ao.pos.x -= separationX * (ballMass / (ballMass + slimeMass));
+        slime.ao.pos.y -= separationY * (ballMass / (ballMass + slimeMass));
+      }
+
+
+      // Set the collision flag for the ball
       if (typeof actorObject.setCollisionFlag === 'function') {
         actorObject.setCollisionFlag(true, 2);
       }
@@ -319,18 +339,28 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
   };
 
   /**
-   * Calculates collision response using billiard physics (conservation of momentum and energy)
-   * 
-   * @param {Object} pos1 - Position of first object
-   * @param {Object} vel1 - Velocity of first object
-   * @param {number} mass1 - Mass of first object
-   * @param {Object} pos2 - Position of second object
-   * @param {Object} vel2 - Velocity of second object
-   * @param {number} mass2 - Mass of second object
-   * @param {number} [restitution=1] - Coefficient of restitution (1=elastic, <1=inelastic)
-   * @returns {Object} New velocities for both objects
-   */
+     * Calculates collision response using billiard physics (conservation of momentum and energy)
+     * * @param {Object} pos1 - Position of first object
+     * @param {Object} vel1 - Velocity of first object
+     * @param {number} mass1 - Mass of first object
+     * @param {Object} pos2 - Position of second object
+     * @param {Object} vel2 - Velocity of second object
+     * @param {number} mass2 - Mass of second object
+     * @param {number} [restitution=1] - Coefficient of restitution (1=elastic, <1=inelastic)
+     * @returns {Object} New velocities for both objects
+     */
   function billiardCollision(pos1, vel1, mass1, pos2, vel2, mass2, restitution = 1) {
+    // --- START DEBUG LOG ---
+    console.log('--- Slime-Ball Collision ---');
+    console.log('Inputs:', {
+      ballVel: { ...vel1 }, // Log a copy
+      slimeVel: { ...vel2 }, // Log a copy
+      ballMass: mass1,
+      slimeMass: mass2,
+      restitution: restitution
+    });
+    // --- END DEBUG LOG ---
+
     // Calculate distance and normal vector
     const dx = pos1.x - pos2.x;
     const dy = pos1.y - pos2.y;
@@ -349,6 +379,10 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
 
     // Early exit if objects are moving away from each other
     if (velocityAlongNormal > 0) {
+      // --- START DEBUG LOG ---
+      console.log('Objects moving away, no collision resolution.');
+      console.log('--- End Collision ---');
+      // --- END DEBUG LOG ---
       return { v1: vel1, v2: vel2 };
     }
 
@@ -361,16 +395,32 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
     const impulseY = impulseFactor * ny;
 
     // Calculate final velocities
-    return {
-      v1: {
+    const finalVelocities = {
+      v1: { // Ball
         x: vel1.x + (impulseX / mass1),
         y: vel1.y + (impulseY / mass1)
       },
-      v2: {
+      v2: { // Slime
         x: vel2.x - (impulseX / mass2),
         y: vel2.y - (impulseY / mass2)
       }
     };
+
+    // --- START DEBUG LOG ---
+    console.log('Calculation:', {
+      normal: { x: nx, y: ny },
+      relativeVelNormal: velocityAlongNormal,
+      impulseFactor: impulseFactor,
+      impulse: { x: impulseX, y: impulseY }
+    });
+    console.log('Outputs:', {
+      newBallVel: { ...finalVelocities.v1 }, // Log a copy
+      newSlimeVel: { ...finalVelocities.v2 }  // Log a copy
+    });
+    console.log('--- End Collision ---');
+    // --- END DEBUG LOG ---
+
+    return finalVelocities;
   }
 
   /**
