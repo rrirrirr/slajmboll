@@ -1,7 +1,7 @@
 import { Event } from '../core/events.js';
 import Actor from './actor.js';
 import {
-  physics,
+  configPhysics as physics,
   resolveCircleCollision,
   circlesCollide,
   calculateDistance
