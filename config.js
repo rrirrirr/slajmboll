@@ -25,6 +25,10 @@ export const physics = {
   GROUND_FRICTION: 0.85,
   /** Air friction factor (0 = max friction, 1 = no friction) */
   AIR_FRICTION: 0.75,
+  /** Mass of the ball for collision calculations */
+  BALL_MASS: 1,
+  /** Mass of the slime for collision calculations */
+  SLIME_MASS: 5,
 };
 
 /**
@@ -32,7 +36,7 @@ export const physics = {
  */
 export const dimensions = {
   /** Default game field ground position */
-  GROUND: 200,
+  GROUND: 200, // Note: This might be dynamically calculated based on field height later
   /** Slime radius relative to game area */
   SLIME_RADIUS: 1,
   /** Ball radius relative to game area */
