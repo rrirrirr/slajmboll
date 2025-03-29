@@ -144,8 +144,8 @@ export const startDirectionChangeJump = (unit, acceleration, lockFrames = 12, to
 
       if (frameCount < lockFrames) {
         const direction = Math.sign(unit._velocity.x);
-        const speedFactor = (frameCount / lockFrames);
-        unit._velocity.x = direction * (speedFactor * 0.1);
+        const speedFactor = (frameCount / lockFrames) * 4;
+        unit._velocity.x = direction * (speedFactor);
       }
 
       return { x: 0, y: strength };
