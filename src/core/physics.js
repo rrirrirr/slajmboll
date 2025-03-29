@@ -68,24 +68,21 @@ export const applyGravity = (velocity, gravity = physics.GRAVITY) => {
 };
 
 /**
- * Applies deceleration (friction) to horizontal movement
+ * Applies deceleration (friction) to horizontal movement IN-PLACE.
  *
- * @param {Velocity} velocity - Current velocity
- * @param {number} frictionFactor - Friction factor (e.g., 0.85). Multiplies velocity.
- * @returns {Velocity} Updated velocity with friction applied
+ * @param {Velocity} velocity - Velocity object to modify.
+ * @param {number} frictionFactor - Friction factor (e.g., 0.85).
  */
 export const applyDeceleration = (velocity, frictionFactor) => {
   let newVelocityX = velocity.x * frictionFactor;
 
-  // Stop completely if velocity is very small to prevent endless sliding
+  // Stop completely if velocity is very small
   if (Math.abs(newVelocityX) < 0.1) {
     newVelocityX = 0;
   }
-
-  return {
-    x: newVelocityX,
-    y: velocity.y
-  };
+  // Modify the original object's x property
+  velocity.x = newVelocityX;
+  // No return needed
 };
 
 /**

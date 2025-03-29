@@ -64,9 +64,9 @@ export const movement = {
   /** Base run acceleration */
   RUN_ACCELERATION: 0.02,
   /** Jump acceleration multiplier */
-  JUMP_ACCELERATION: 0.6,
+  JUMP_ACCELERATION: 0.8,
   /** Direction change bonus acceleration */
-  DIRECTION_CHANGE_BONUS: 1.0,
+  DIRECTION_CHANGE_BONUS: 1.2,
   /** Wall jump cooldown (frames) */
   WALL_JUMP_COOLDOWN: 8,
   /** Direction change jump window (frames) */

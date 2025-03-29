@@ -58,28 +58,27 @@ function Movement(movementFn) {
 export const startJump = (acceleration, killSignal, end) => {
   const jumpPower = acceleration;
 
-  let frameCount = 0;
+  let frameCount = 0; // This doesn't seem used correctly with frameMovement
   const maxFrames = 20;
   const minFrames = 6;
 
   const jumpMovement = frameMovement(
     maxFrames,
-    (frame) => {
-      frameCount++;
+    (frame) => { // 'frame' here counts DOWN from maxFrames
+      const strength = -jumpPower * (frame / maxFrames);
 
-      // Upward force that decreases linearly
-      const strength = -jumpPower * (1 - (frameCount / maxFrames) * 0.6);
       return strength;
     },
     () => {
-      return killSignal() && frameCount >= minFrames;
+      return killSignal();
     },
     end
   );
 
   return Movement(() => {
     const yValue = jumpMovement.next().value;
-    return { x: 0, y: yValue };
+    // Ensure we return an object, even if value is just a number
+    return { x: 0, y: (typeof yValue === 'number' ? yValue : 0) };
   });
 };
 
@@ -141,12 +140,12 @@ export const startDirectionChangeJump = (unit, acceleration, lockFrames = 12, to
     totalFrames,
     (frame) => {
       frameCount++;
-      const strength = acceleration * (1 - (totalFrames / frameCount));
+      const strength = 0.18 * acceleration * (1 - (totalFrames / frameCount));
 
       if (frameCount < lockFrames) {
         const direction = Math.sign(unit._velocity.x);
         const speedFactor = (frameCount / lockFrames);
-        unit._velocity.x = direction * (speedFactor * 10.0);
+        unit._velocity.x = direction * (speedFactor * 0.1);
       }
 
       return { x: 0, y: strength };

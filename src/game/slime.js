@@ -164,27 +164,16 @@ export function Slime(
           activeJumpMovement = null;
         }
 
-        // Temporarily increase max velocity to allow for a much higher jump
-        actorObject.setMaxVelocity(5.0);
-
         activeJumpMovement = startDirectionChangeJump(
           actorObject,
-          jumpAcceleration * movement.DIRECTION_CHANGE_BONUS,
+          jumpAcceleration * 1.2,
           16, // Lock frames
           24, // total frames
           () => false, // no kill signal
           () => {
             // Callback when jump completes
-            console.log('has run', isRunning, isRunningLeft, isRunningRight)
-            console.log(activeRunMovement)
-            console.log("Direction change jump complete");
-
-            // Restore original jump release handler
-            // onJumpReleased = originalJumpRelease;
-
             // Reset states
             isJumping = false;
-            actorObject.resetMaxVelocity();
             activeJumpMovement = null;
           }
         );

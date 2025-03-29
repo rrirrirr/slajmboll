@@ -355,20 +355,24 @@ export default function Actor(
 
     if (hasFriction) {
       if (isGrounded) {
-        // Apply GROUND friction when grounded
-        actorVelocity = applyDeceleration(actorVelocity, physics.GROUND_FRICTION);
+        // Call applyDeceleration to modify actorVelocity in-place
+        applyDeceleration(actorVelocity, physics.GROUND_FRICTION);
       } else {
-        // Apply AIR friction when not grounded
-        actorVelocity = applyDeceleration(actorVelocity, physics.AIR_FRICTION);
+        // Call applyDeceleration to modify actorVelocity in-place
+        applyDeceleration(actorVelocity, physics.AIR_FRICTION);
       }
+      // REMOVED the "actorVelocity = ..." reassignment
     }
 
-    // Apply gravity FIRST (before capping)
+    // Apply gravity (modifies actorVelocity in-place)
     actorVelocity.y += downwardAcceleration;
 
-    // --- Velocity capping logic remains the same ---
-    const recentlyCollided = collisionFrameCount > 0;
-    // ... (rest of capping logic) ...
+    // --- Velocity capping ---
+    // const recentlyCollided = collisionFrameCount > 0;
+    // if (!recentlyCollided && Math.abs(actorVelocity.x) > maximumVelocity) {
+    //   actorVelocity.x = Math.sign(actorVelocity.x) * maximumVelocity;
+    // }
+    // ... (rest of capping) ...
   }
 
   // Modify setCollisionFlag to reset counter properly
