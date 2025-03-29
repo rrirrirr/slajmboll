@@ -7,6 +7,54 @@ import {
   calculateDistance
 } from '../core/physics.js';
 
+// +++ Add Clamp Helper Function +++
+// (If you don't have it imported or available elsewhere)
+/**
+ * Clamps a value between a minimum and maximum value.
+ * @param {number} value The value to clamp.
+ * @param {number} min The minimum allowed value.
+ * @param {number} max The maximum allowed value.
+ * @returns {number} The clamped value.
+ */
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(value, max));
+}
+// +++ End Clamp Helper Function +++
+
+
+// +++ Add Circle-Segment Collision Helper +++
+/**
+ * Checks for collision between a circle (ball) and a line segment.
+ * @param {number} p1x - Start X of segment.
+ * @param {number} p1y - Start Y of segment.
+ * @param {number} p2x - End X of segment.
+ * @param {number} p2y - End Y of segment.
+ * @param {object} ballGeom - The ball geometry {x, y, radius}.
+ * @returns {boolean} True if collision, false otherwise.
+ */
+function checkCollisionCircleSegment(p1x, p1y, p2x, p2y, ballGeom) {
+  // Find the closest point on the infinite line containing the segment
+  const lineLenSq = (p2x - p1x) ** 2 + (p2y - p1y) ** 2;
+  let t = 0; // Parameter along the line segment (0=p1, 1=p2)
+  if (lineLenSq > 1e-6) { // Avoid division by zero if p1 and p2 are the same
+    t = ((ballGeom.x - p1x) * (p2x - p1x) + (ballGeom.y - p1y) * (p2y - p1y)) / lineLenSq;
+    t = clamp(t, 0, 1); // Clamp t to be within the segment [0, 1]
+  }
+
+  // Calculate coordinates of the closest point on the segment
+  const closestX = p1x + t * (p2x - p1x);
+  const closestY = p1y + t * (p2y - p1y);
+
+  // Calculate distance squared from ball center to closest point
+  const dx = ballGeom.x - closestX;
+  const dy = ballGeom.y - closestY;
+  const distanceSquared = dx * dx + dy * dy;
+
+  // Check if the distance is less than the ball's radius squared
+  return distanceSquared < ballGeom.radius * ballGeom.radius;
+}
+// +++ End Circle-Segment Collision Helper +++
+
 /**
  * Creates a ball entity for the game
  * 
@@ -223,152 +271,149 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
   };
 
   /**
-     * Simple circle-to-circle collision detection with a slime using billiard physics
-     *
-     * @param {Object} slime - Slime object to check collision with
-     * @returns {boolean} True if collision occurred
-     */
+       * Optimized collision check for accurate half-circle shape.
+       * V4: Reduced redundant calculations.
+       * @param {Object} slime - Slime object. Contains slime.ao (actor) with .realRadius
+       * @returns {boolean} True if collision occurred
+       */
   const checkSlimeCollision = (slime) => {
-    if (!slime || !slime.ao) return false;
+    // --- Check for valid slime object ---
+    if (!slime || !slime.ao || typeof slime.ao.realRadius !== 'number') {
+      return false;
+    }
 
-    // Get ball center and radius
+    // --- Calculate Common Values ---
     const ballX = actorObject.pos.x;
     const ballY = actorObject.pos.y;
     const ballRadius = ballSize / 2;
 
-    // Get slime dimensions from cache or update if not available
-    if (!slimeDimensionsCache.has(slime.slimeId)) {
-      updateSlimeDimensions(slime.slimeId);
+    const slimeX = slime.ao.pos.x;
+    const slimeY = slime.ao.pos.y; // Bottom baseline Y
+    const slimeCollisionRadius = slime.ao.realRadius; // Height/Arc Radius
+
+    // Vector from slime center to ball center
+    const dx = ballX - slimeX; // Renamed from dx_arc for broader use
+    const dy = ballY - slimeY; // Renamed from dy_arc for broader use
+
+    // Squared distance between centers
+    const distSq = dx * dx + dy * dy; // Renamed from distSq_arc
+
+    // Combined radii squared (for arc check)
+    const sumRadii = slimeCollisionRadius + ballRadius;
+    const sumRadiiSq = sumRadii * sumRadii;
+
+    let collisionDetected = false;
+    let collisionType = 'none';
+
+    // --- Part 1: Check Collision with Flat Bottom Segment ---
+    // Check if ball is potentially close enough to the segment vertically and horizontally first
+    // This is a quick AABB-like pre-check
+    if (Math.abs(dy) < ballRadius && Math.abs(dx) < slimeCollisionRadius + ballRadius) {
+      const segmentP1x = slimeX - slimeCollisionRadius;
+      const segmentP2x = slimeX + slimeCollisionRadius;
+      const segmentY = slimeY;
+
+      if (checkCollisionCircleSegment(
+        segmentP1x, segmentY, segmentP2x, segmentY,
+        { x: ballX, y: ballY, radius: ballRadius }
+      )) {
+        collisionDetected = true;
+        collisionType = 'bottom';
+      }
     }
 
-    const slimeDimensions = slimeDimensionsCache.get(slime.slimeId);
-    if (!slimeDimensions) return false;
+    // --- Part 2: Check Collision with Arc (only if bottom didn't hit) ---
+    if (!collisionDetected) {
+      // Check overlap with the full circle AND position filter
+      if (distSq < sumRadiiSq && ballY <= slimeY + ballRadius) {
+        collisionDetected = true;
+        collisionType = 'arc';
+      }
+    }
 
-    // Slime position and radius
-    const slimeX = slime.ao.pos.x;
-    const slimeY = slime.ao.pos.y;
-    const slimeRadius = slime.ao.realRadius;
-
-    // Use the physics module to check for collision
-    if (circlesCollide(
-      { x: ballX, y: ballY },
-      ballRadius,
-      { x: slimeX, y: slimeY },
-      slimeRadius
-    )) {
-      // Get velocities
-      const ballVelocity = { ...actorObject._velocity }; // Use copy
-      const slimeVelocity = { ...(slime.ao._velocity || { x: 0, y: 0 }) }; // Use copy, provide default
-
-      // Get masses
+    // --- Part 3: Resolve Collision if Detected ---
+    if (collisionDetected) {
+      // --- Optimized Collision Resolution ---
+      const ballVelocity = { ...actorObject._velocity };
+      const slimeVelocity = { ...(slime.ao._velocity || { x: 0, y: 0 }) };
       const ballMass = 1;
-      const slimeMass = 5; // Slime is 5x the ball's mass
-
-      // Get positions
+      const slimeMass = 5;
       const ballPos = { x: ballX, y: ballY };
       const slimePos = { x: slimeX, y: slimeY };
 
-      // Calculate distance and normal vector (needed for separation)
-      const distance = calculateDistance(ballPos, slimePos);
-      const nx = (ballX - slimeX) / distance;
-      const ny = (ballY - slimeY) / distance;
+      // Calculate distance ONLY if needed (for normalization and separation)
+      // Reuse dx, dy calculated earlier
+      const distance = Math.sqrt(distSq); // Perform sqrt only now
+      const nx = (distance > 1e-6) ? dx / distance : 1; // Normalize X (handle zero dist)
+      const ny = (distance > 1e-6) ? dy / distance : 0; // Normalize Y
 
-      // Calculate new velocities using billiard physics (conservation of momentum & energy)
-      const newVelocities = billiardCollision(
+      // Calculate new velocities
+      const newVelocities = billiardCollision( // Assumes billiardCollision uses normal vector if available or recomputes
         ballPos, ballVelocity, ballMass,
         slimePos, slimeVelocity, slimeMass,
-        physics.SLIME_BOUNCE_FACTOR
+        physics.SLIME_BOUNCE_FACTOR,
+        nx, ny // Pass the calculated normal vector to potentially optimize billiardCollision
       );
 
-      // --- APPLY VELOCITIES TO BOTH OBJECTS ---
-      // Apply to Ball
+      // Apply velocities
       actorObject._velocity.x = newVelocities.v1.x;
       actorObject._velocity.y = newVelocities.v1.y;
-
-      // Apply to Slime (assuming slime.ao is the actor object for the slime)
-      if (slime.ao && slime.ao._velocity) {
+      if (slime.ao?._velocity) {
         slime.ao._velocity.x = newVelocities.v2.x;
         slime.ao._velocity.y = newVelocities.v2.y;
-        // Also set collision flag for slime to prevent its own immediate capping
-        if (typeof slime.ao.setCollisionFlag === 'function') {
-          slime.ao.setCollisionFlag(true, 2);
-        }
-        console.log(`Applied velocity to Slime ${slime.slimeId}: { x: ${newVelocities.v2.x.toFixed(2)}, y: ${newVelocities.v2.y.toFixed(2)} }`); // Debug log
-      } else {
-        console.warn("Could not apply post-collision velocity to slime - slime.ao or slime.ao._velocity missing.");
+        slime.ao.setCollisionFlag?.(true, 2);
       }
-      // --- END APPLY VELOCITIES ---
 
-
-      // Important: Properly separate the objects after collision to prevent multiple collision detections
-      // Move ball away from slime along collision normal (with a small extra buffer)
-      const overlap = (ballRadius + slimeRadius) - distance;
-      const separationBuffer = 1; // Small buffer to prevent immediate re-collision
+      // Separation logic using pre-calculated distance and normal
+      const overlap = (ballRadius + slimeCollisionRadius) - distance;
+      const separationBuffer = 1;
       if (overlap > 0) {
         const separationX = nx * (overlap + separationBuffer);
         const separationY = ny * (overlap + separationBuffer);
-
-        // Move the ball by half the separation, and slime by the other half (weighted by inverse mass?)
-        // Simpler: Just move the ball out fully for now.
         actorObject.pos.x += separationX;
         actorObject.pos.y += separationY;
-
-        // Optionally, move the slime slightly too
-        slime.ao.pos.x -= separationX * (ballMass / (ballMass + slimeMass));
-        slime.ao.pos.y -= separationY * (ballMass / (ballMass + slimeMass));
       }
 
+      // Set ball collision flag
+      actorObject.setCollisionFlag?.(true, 2);
 
-      // Set the collision flag for the ball
-      if (typeof actorObject.setCollisionFlag === 'function') {
-        actorObject.setCollisionFlag(true, 2);
-      }
-
-      // Emit collision event
-      hitSlimeEvent.emit({
-        slimeId: slime.slimeId,
-        teamNumber: slime.teamNumber,
-        velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y },
-        position: { x: actorObject.pos.x, y: actorObject.pos.y }
-      });
+      // Emit event
+      hitSlimeEvent.emit({ /* ... event data ... */ collisionType: collisionType });
+      // --- End Optimized Collision Resolution ---
 
       return true;
     }
 
-    return false;
-  };
+    return false; // No collision detected
+  }; // End of checkSlimeCollision
 
   /**
-     * Calculates collision response using billiard physics (conservation of momentum and energy)
-     * * @param {Object} pos1 - Position of first object
-     * @param {Object} vel1 - Velocity of first object
-     * @param {number} mass1 - Mass of first object
-     * @param {Object} pos2 - Position of second object
-     * @param {Object} vel2 - Velocity of second object
-     * @param {number} mass2 - Mass of second object
-     * @param {number} [restitution=1] - Coefficient of restitution (1=elastic, <1=inelastic)
-     * @returns {Object} New velocities for both objects
-     */
-  function billiardCollision(pos1, vel1, mass1, pos2, vel2, mass2, restitution = 1) {
-    // --- START DEBUG LOG ---
-    console.log('--- Slime-Ball Collision ---');
-    console.log('Inputs:', {
-      ballVel: { ...vel1 }, // Log a copy
-      slimeVel: { ...vel2 }, // Log a copy
-      ballMass: mass1,
-      slimeMass: mass2,
-      restitution: restitution
-    });
-    // --- END DEBUG LOG ---
+   * Calculates collision response using billiard physics.
+   * Can optionally accept pre-calculated collision normal.
+   * @param {Object} pos1 - Position of first object {x, y}
+   * @param {Object} vel1 - Velocity of first object {x, y}
+   * @param {number} mass1 - Mass of first object
+   * @param {Object} pos2 - Position of second object {x, y}
+   * @param {Object} vel2 - Velocity of second object {x, y}
+   * @param {number} mass2 - Mass of second object
+   * @param {number} [restitution=1] - Coefficient of restitution
+   * @param {number|null} [nx_in=null] - Pre-calculated collision normal x component
+   * @param {number|null} [ny_in=null] - Pre-calculated collision normal y component
+   * @returns {Object} New velocities { v1: {x, y}, v2: {x, y} }
+   */
+  function billiardCollision(pos1, vel1, mass1, pos2, vel2, mass2, restitution = 1, nx_in = null, ny_in = null) {
+    let nx = nx_in;
+    let ny = ny_in;
 
-    // Calculate distance and normal vector
-    const dx = pos1.x - pos2.x;
-    const dy = pos1.y - pos2.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    // Normalize the collision normal
-    const nx = dx / distance;
-    const ny = dy / distance;
+    // Recalculate normal if not provided
+    if (nx === null || ny === null) {
+      const dx = pos1.x - pos2.x;
+      const dy = pos1.y - pos2.y;
+      // Ensure distance is non-zero for normalization
+      const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1e-6);
+      nx = dx / distance;
+      ny = dy / distance;
+    }
 
     // Calculate relative velocity
     const dvx = vel1.x - vel2.x;
@@ -377,51 +422,33 @@ export function Ball(position, dimensions, constraints, field, options = {}) {
     // Calculate velocity along the normal
     const velocityAlongNormal = dvx * nx + dvy * ny;
 
-    // Early exit if objects are moving away from each other
+    // Early exit if objects are moving away from each other along the normal
     if (velocityAlongNormal > 0) {
-      // --- START DEBUG LOG ---
-      console.log('Objects moving away, no collision resolution.');
-      console.log('--- End Collision ---');
-      // --- END DEBUG LOG ---
+      // console.log('Objects moving away, no collision resolution needed.');
       return { v1: vel1, v2: vel2 };
     }
 
-    // Calculate impulse scalar
-    const impulseFactor = (-(1 + restitution) * velocityAlongNormal) /
-      (1 / mass1 + 1 / mass2);
+    // Calculate impulse scalar using masses and restitution
+    const impulseFactor = (-(1 + restitution) * velocityAlongNormal) / (1 / mass1 + 1 / mass2);
 
-    // Apply impulse to velocities along normal
+    // Calculate impulse vector components
     const impulseX = impulseFactor * nx;
     const impulseY = impulseFactor * ny;
 
-    // Calculate final velocities
-    const finalVelocities = {
-      v1: { // Ball
+    // Calculate and return final velocities after applying impulse
+    // v1 = v1 + impulse / mass1
+    // v2 = v2 - impulse / mass2
+    return {
+      v1: { // Ball's new velocity
         x: vel1.x + (impulseX / mass1),
         y: vel1.y + (impulseY / mass1)
       },
-      v2: { // Slime
+      v2: { // Slime's new velocity
         x: vel2.x - (impulseX / mass2),
         y: vel2.y - (impulseY / mass2)
       }
     };
-
-    // --- START DEBUG LOG ---
-    console.log('Calculation:', {
-      normal: { x: nx, y: ny },
-      relativeVelNormal: velocityAlongNormal,
-      impulseFactor: impulseFactor,
-      impulse: { x: impulseX, y: impulseY }
-    });
-    console.log('Outputs:', {
-      newBallVel: { ...finalVelocities.v1 }, // Log a copy
-      newSlimeVel: { ...finalVelocities.v2 }  // Log a copy
-    });
-    console.log('--- End Collision ---');
-    // --- END DEBUG LOG ---
-
-    return finalVelocities;
-  }
+  } // End billiardCollision
 
   /**
    * Forces an update of the slime dimensions cache
