@@ -75,6 +75,16 @@ export const movement = {
   WALL_JUMP_COOLDOWN: 8,
   /** Direction change jump window (frames) */
   DIRECTION_CHANGE_WINDOW: 15,
+  JUMP_MAX_FRAMES: 20,          // Duration jump force can be applied if key held
+  JUMP_MIN_FRAMES: 6,           // Minimum frames jump force is applied (unused currently?)
+  WALL_JUMP_H_FACTOR: 0.2,      // Horizontal force multiplier for wall jump
+  WALL_JUMP_DURATION: 20,       // Frames wall jump force is applied
+  DIR_CHANGE_JUMP_ACCEL_BONUS: 1.2, // Multiplier for direction change jump force
+  DIR_CHANGE_JUMP_LOCK_FRAMES: 10, // Frames to restrict horizontal movement during dir change jump
+  DIR_CHANGE_JUMP_TOTAL_FRAMES: 20, // Total duration for dir change jump impulse calculation
+  OPPOSITE_RUN_BONUS_FRAMES: 20, // Duration of bonus acceleration when changing run direction
+  OPPOSITE_RUN_ACCEL_BONUS: 2.0, // Multiplier for bonus run acceleration (relative to normal run)
+
 };
 
 /**
