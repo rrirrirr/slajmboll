@@ -1,8 +1,8 @@
 import { Event, events } from '../core/events.js';
-import Actor from './actor.js';
-import { createSlimeElement, updateSlimeTeamAppearance, renderSlime } from '../ui/slimeGraphics.js';
+import Actor from './actor.js'; // Imports the refactored Actor
+import { createSlimeElement, renderSlime } from '../ui/slimeGraphics.js'; // Removed updateSlimeTeamAppearance as it's handled internally now
 import { Animation } from '../utils/animations.js';
-import { movement, physics } from '../../config.js';
+import { teams as configTeams, movement as configMovement, physics as configPhysics } from '../../config.js'; // Use aliased imports
 import {
   startJump,
   startOppositeRun,
@@ -19,7 +19,7 @@ import {
 
 /**
  * @typedef {Object} SlimeDimensions
- * @property {number} radius - Collision radius
+ * @property {number} radius - Collision radius (relative size)
  */
 
 /**
@@ -27,589 +27,443 @@ import {
  * @property {number} rightBoundry - Right boundary
  * @property {number} leftBoundry - Left boundary
  * @property {number} ground - Ground level
- * @property {number} maxVelocity - Maximum velocity
+ * @property {number} maxVelocity - Maximum velocity limit for the actor
  */
 
 /**
- * Creates a slime character entity
- * 
- * @param {number} team - Team number (1 or 2)
- * @param {number} teamNumber - Player index
- * @param {Object} pos - Initial position {x, y}
- * @param {SlimeAppearance} appearance - Visual appearance
- * @param {SlimeDimensions} dimensions - Physical dimensions
- * @param {SlimeConstraints} constraints - Movement constraints
- * @param {Object} game - Game controller
- * @param {Object} keys - Input handlers
- * @returns {Object} Slime entity
+ * Creates a slime character entity.
+ * Manages slime-specific logic, movement initiation, and state, using an Actor for physics.
+ *
+ * @param {number} initialTeam - Team number (1 or 2, or 0 if unassigned initially).
+ * @param {number} playerIndex - Unique index identifying the player controlling this slime.
+ * @param {Object} initialPos - Initial position {x, y}.
+ * @param {SlimeAppearance} appearance - Visual appearance properties.
+ * @param {SlimeDimensions} dimensions - Physical dimensions (relative radius).
+ * @param {SlimeConstraints} constraints - Movement constraints.
+ * @param {Object} gameController - Game controller object providing events and container access (e.g., WaitingGame instance).
+ * @param {Object} keys - Input handlers mapped to player controls (e.g., from inputManager.setupPlayerKeys).
+ * @returns {Object} Slime entity instance.
  */
 export function Slime(
-  team,
-  teamNumber,
-  pos,
+  initialTeam,
+  playerIndex, // Renamed teamNumber to playerIndex for clarity
+  initialPos,
   appearance,
   dimensions,
   constraints,
-  game,
+  gameController, // Renamed game to gameController for clarity
   keys
 ) {
-  // Get global events
-  const delayedActionsEvent = events.get('delayed actions');
-  const animationsEvent = events.get('animations');
+  // --- State and Configuration ---
+  const slimeId = `slime_${playerIndex}_${Date.now()}`; // Unique ID
+  const slimeAppearance = { ...appearance }; // Local copy of appearance
+  let currentTeam = initialTeam;
 
-  // Setup instance variables
-  let currentTeam = team;
-  const slimeAppearance = appearance;
-  const gameController = game;
+  // Physics constants derived from constraints and config
+  let areaWidth, radius, slimeWidth, slimeHeight, runAcceleration, bonusStartAcceleration, dashAcceleration, bonusThreshold;
 
-  // Create unique identifier for this slime
-  const slimeId = `slime_${teamNumber}_${Date.now()}`;
+  // Movement state variables
+  let bonusAcceleration = 1; // Multiplier? Seems unused, maybe remove?
+  let jumpAcceleration = configMovement.JUMP_ACCELERATION; // Base jump strength multiplier
+  let bonusJumpAcceleration = jumpAcceleration * configMovement.DIRECTION_CHANGE_BONUS; // Bonus multiplier
 
-  // Physics constants and dimensions
-  let areaWidth;
-  let radius;
-  let slimeWidth;
-  let slimeHeight;
-  let runAcceleration;
-  let bonusStartAcceleration;
-  let dashAcceleration;
-  let bonusThreshold;
-  let runDeceleration;
-
-  /**
-   * Sets up slime constants based on constraints
-   * 
-   * @param {SlimeConstraints} slimeConstraints - Movement constraints
-   */
-  const setupConstants = (slimeConstraints) => {
-    areaWidth = slimeConstraints.rightBoundry - slimeConstraints.leftBoundry;
-    radius = dimensions.radius;
-    slimeWidth = (areaWidth / physics.K) * radius;
-    slimeHeight = slimeWidth / 2;
-    runAcceleration = (areaWidth / physics.K) * movement.RUN_ACCELERATION;
-    bonusStartAcceleration = runAcceleration * 2;
-    dashAcceleration = (areaWidth / physics.K) * 0.052;
-    bonusThreshold = runAcceleration * 5;
-  };
-
-  // Initialize constants
-  setupConstants(constraints);
-
-  // Movement state
-  let bonusAcceleration = 1;
-  let jumpAcceleration = movement.JUMP_ACCELERATION;
-  let bonusJumpAcceleration = jumpAcceleration * movement.DIRECTION_CHANGE_BONUS;
-
-  // Active movements
+  // Active movement generators
   let activeRunMovement = null;
   let activeJumpMovement = null;
 
   // State flags
-  const bonuses = [];
   let isRunning = false;
   let isRunningLeft = false;
   let isRunningRight = false;
-  let runningDirection = 0;
-  let isJumping = false;
+  let runningDirection = 0; // -1 left, 0 none, 1 right
+  let isJumping = false;    // Flag if jump key is currently held
+  let isMidAir = false;     // True if not grounded (based on groundHit)
   let isDucking = false;
-  let isGrounded = true;
-  let hasDirectionChangeBonus = false;
-  let isHuggingWall = 0;
-  let hasWallJump = true;
-  let lastDirectionChangeTime = 0;
-  const directionChangeWindow = movement.DIRECTION_CHANGE_WINDOW;
+  let hasDirectionChangeBonus = false; // Flag for bonus run speed
+  let isHuggingWall = 0;    // -1 left, 0 none, 1 right (wall contact)
+  let canWallJump = true;   // Cooldown flag for wall jump
+  let directionChangeFrames = 0; // Counter for direction change bonus window
 
-  // Create actor with unique id, passing team information
-  let actorObject = Actor(
-    pos,
-    { x: 0, y: 0 },
-    dimensions.radius,
+  // Get global events (optional, consider passing them in or using a service)
+  const delayedActionsEvent = events.get('delayed actions');
+  const animationsEvent = events.get('animations');
+
+  /** Sets up slime physics constants based on current constraints */
+  const setupConstants = (currentConstraints) => {
+    areaWidth = currentConstraints.rightBoundry - currentConstraints.leftBoundry;
+    radius = dimensions.radius; // Relative radius
+    // Calculate pixel dimensions based on scaling factor K
+    slimeWidth = (areaWidth / configPhysics.K) * radius;
+    slimeHeight = slimeWidth / 2; // Assuming half-circle
+
+    // Calculate accelerations based on scaling factor K
+    runAcceleration = (areaWidth / configPhysics.K) * configMovement.RUN_ACCELERATION;
+    bonusStartAcceleration = runAcceleration * 2; // Consider config value?
+    dashAcceleration = (areaWidth / configPhysics.K) * 0.052; // TODO: Move magic number to config?
+    bonusThreshold = runAcceleration * 5; // Speed threshold for bonus run
+  };
+
+  // Initialize physics constants
+  setupConstants(constraints);
+
+  // --- Create Actor ---
+  // IMPORTANT: Actor must be fully initialized here before render can be called.
+  const actorObject = Actor(
+    initialPos,
+    { x: 0, y: 0 }, // Initial velocity
+    dimensions.radius, // Relative radius
     constraints.rightBoundry,
     constraints.leftBoundry,
     constraints.ground,
     constraints.maxVelocity,
-    game.sizeChange,
-    currentTeam // Pass team to Actor
+    gameController.sizeChange, // Pass resize event if needed by Actor
+    currentTeam, // Pass initial team
+    false // Slimes are NOT frictionless
   );
 
-  // Create DOM element with unique identifier
-  const slimeElement = createSlimeElement(appearance);
-  slimeElement.setAttribute('data-slime-id', slimeId);
-  slimeElement.classList.add(`slime-${teamNumber}`);
-  slimeElement.style.width = `${slimeWidth}px`;
+  // --- Create Graphics ---
+  const slimeElement = createSlimeElement(slimeAppearance); // Creates the div
+  slimeElement.setAttribute('data-slime-id', slimeId);      // Set unique ID
+  slimeElement.classList.add(`slime-player-${playerIndex}`); // Class for player index
+  slimeElement.style.width = `${slimeWidth}px`;             // Set initial size
   slimeElement.style.height = `${slimeHeight}px`;
-  gameController.go.appendChild(slimeElement);
+  // Add the element to the container provided by the gameController
+  if (gameController?.go?.appendChild) {
+    gameController.go.appendChild(slimeElement);
+  } else {
+    console.error(`Slime ${slimeId}: Invalid gameController container! Cannot add slime element.`);
+    // Handle error case - maybe return null or throw?
+  }
 
-  /**
-   * Handles jump button press
-   */
-  const onJumpPressed = () => {
-    console.log(`Jump pressed for slime ${teamNumber}`);
-    if (isJumping) {
-      return;
-    }
+  // --- Internal Helper Functions ---
 
-    if (isGrounded) {
-      isJumping = true;
-      isGrounded = false;
-
-      // Direction change high jump
-      if (lastDirectionChangeTime > 0) {
-        console.log('Direction change jump!');
-        lastDirectionChangeTime = 0;
-
-        // Clear any existing jump movement
-        if (activeJumpMovement) {
-          actorObject.removeMovement(activeJumpMovement);
-          activeJumpMovement = null;
-        }
-
-        activeJumpMovement = startDirectionChangeJump(
-          actorObject,
-          jumpAcceleration * 1.2,
-          20, // Lock frames
-          26, // total frames
-          () => false, // no kill signal
-          () => {
-            // Callback when jump completes
-            // Reset states
-            isJumping = false;
-            activeJumpMovement = null;
-          }
-        );
-
-        actorObject.addMovement(activeJumpMovement);
-
-      }
-      // else if (hasDirectionChangeBonus) {
-      //   console.log('bonus jump');
-
-      //   // Clear any existing jump movement
-      //   if (activeJumpMovement) {
-      //     actorObject.removeMovement(activeJumpMovement);
-      //   }
-
-      //   actorObject.setMaxVelocity(2.2);
-      //   activeJumpMovement = startJump(
-      //     bonusJumpAcceleration,
-      //     () => !isJumping,
-      //     () => {
-      //       actorObject.resetMaxVelocity();
-      //       activeJumpMovement = null;
-      //     }
-      //   );
-      //   actorObject.addMovement(activeJumpMovement);
-      // }
-      else {
-        console.log('standard jump');
-
-        // Clear any existing jump movement
-        if (activeJumpMovement) {
-          actorObject.removeMovement(activeJumpMovement);
-        }
-
-        activeJumpMovement = startJump(
-          jumpAcceleration,
-          () => !isJumping,
-          () => {
-            console.log('Jump complete');
-            activeJumpMovement = null;
-          }
-        );
-        actorObject.addMovement(activeJumpMovement);
-      }
-    }
-    else if (isHuggingWall !== 0 && hasWallJump) {
-      // console.log("Executing wall jump, direction:", -isHuggingWall);
-      // isJumping = true;
-      // hasWallJump = false;
-      // delayedActionsEvent.emit({
-      //   slimeId: slimeId,
-      //   delay: movement.WALL_JUMP_COOLDOWN,
-      //   execute: () => {
-      //     hasWallJump = true;
-      //   }
-      // });
-
-      // // Visual feedback for wall jump
-      // animationsEvent.emit(
-      //   Animation(
-      //     6,
-      //     (frame) => {
-      //       slimeElement.style.background = `linear-gradient(${-isHuggingWall * 90}deg, ${slimeAppearance.color} ${frame * 15}%, white ${frame * 20}%)`;
-      //       if (frame < 2) slimeElement.style.background = '';
-      //     },
-      //     (frame) => frame < 1
-      //   )
-      // );
-
-      // // Clear any existing jump movement
-      // if (activeJumpMovement) {
-      //   actorObject.removeMovement(activeJumpMovement);
-      // }
-
-      // actorObject.setMaxVelocity(1.2);
-      // activeJumpMovement = startWallJump(
-      //   jumpAcceleration,
-      //   -isHuggingWall,
-      //   () => !isJumping,
-      //   () => {
-      //     actorObject.resetMaxVelocity();
-      //     activeJumpMovement = null;
-      //   }
-      // );
-      // actorObject.addMovement(activeJumpMovement);
-    }
-  };
-
-  /**
-   * Handles jump button release
-   */
-  const onJumpReleased = () => {
-    console.log(`Jump released for slime ${teamNumber}`);
-    isJumping = false;
-  };
-
-  /**
-   * Initializes a standard run movement
-   * 
-   * @param {number} direction - Direction (-1 for left, 1 for right)
-   */
+  /** Initiates a standard run movement generator */
   const initRun = (direction) => {
-    // Remove existing run movement if any
-    if (activeRunMovement) {
-      actorObject.removeMovement(activeRunMovement);
-      activeRunMovement = null;
-    }
-
-    // Create proper kill signal
-    const killSignal = direction === -1
-      ? () => !isRunningLeft
-      : () => !isRunningRight;
-
-    // Create and add new run movement
+    if (activeRunMovement) actorObject.removeMovement(activeRunMovement); // Remove old one
+    const killSignal = direction === -1 ? () => !isRunningLeft : () => !isRunningRight;
     activeRunMovement = startRun(runAcceleration, direction, killSignal);
     actorObject.addMovement(activeRunMovement);
   };
 
-  /**
-   * Initializes a bonus run (after direction change)
-   * 
-   * @param {number} direction - Direction (-1 for left, 1 for right)
-   */
+  /** Initiates a bonus run movement generator (after direction change) */
   const initBonusRun = (direction) => {
-    console.log('Init bonus run ' + direction);
+    console.log(`Slime ${playerIndex}: Init bonus run ${direction}`);
+    if (activeRunMovement) actorObject.removeMovement(activeRunMovement);
 
-    // Remove existing run movement if any
-    if (activeRunMovement) {
-      actorObject.removeMovement(activeRunMovement);
-      activeRunMovement = null;
-    }
+    hasDirectionChangeBonus = true; // Set bonus flag
+    const killSignal = direction === -1 ? () => !isRunningLeft : () => !isRunningRight;
 
-    hasDirectionChangeBonus = true;
-
-    // Create proper kill signal
-    const killSignal = direction === -1
-      ? () => !isRunningLeft
-      : () => !isRunningRight;
-
-    // actorObject.setMaxVelocity(0.15);
-
+    // Start the bonus run movement (which handles tapering to normal speed)
     activeRunMovement = startOppositeRun(
       bonusStartAcceleration,
       direction,
       killSignal,
-      runAcceleration  // Pass normal acceleration for after bonus period
+      runAcceleration // Normal acceleration after bonus
     );
-
     actorObject.addMovement(activeRunMovement);
 
-    // Create a delayed action just to reset the flag
-    const bonusDuration = 20;
-    delayedActionsEvent.emit({
-      slimeId: slimeId,
-      delay: bonusDuration,
-      execute: () => {
-        hasDirectionChangeBonus = false;
-      }
+    // Reset the bonus flag after a short duration (e.g., 20 frames)
+    // TODO: Consider making bonus duration configurable
+    delayedActionsEvent?.emit({ // Use optional chaining for safety
+      slimeId: slimeId, // Associate with this slime
+      delay: 20,
+      execute: () => { hasDirectionChangeBonus = false; }
     });
-
-
   };
 
-  /**
-   * Handles movement button press
-   * 
-   * @param {number} direction - Direction (-1 for left, 1 for right)
-   */
+  /** Initiates a jump movement generator */
+  const initJump = (jumpForceMultiplier = 1, customEndCallback = null) => {
+    if (activeJumpMovement) actorObject.removeMovement(activeJumpMovement); // Clear existing jump
+
+    const baseJumpForce = actorObject.jumpAcceleration * jumpForceMultiplier; // Use jump value from Actor
+
+    activeJumpMovement = startJump(
+      baseJumpForce, // Use base jump force from actor, potentially scaled
+      () => !isJumping, // Kill signal: stop when jump key released
+      () => { // End callback
+        console.log(`Slime ${playerIndex}: Jump movement ended.`);
+        activeJumpMovement = null; // Clear the reference
+        if (customEndCallback) customEndCallback();
+      }
+    );
+    actorObject.addMovement(activeJumpMovement);
+    isJumping = true; // Mark as jumping (key held down)
+    isMidAir = true;  // Definitely in the air now
+  };
+
+  /** Initiates a wall jump movement generator */
+  const initWallJump = (wallDirection) => {
+    if (activeJumpMovement) actorObject.removeMovement(activeJumpMovement);
+
+    const baseJumpForce = actorObject.jumpAcceleration; // Base force
+    const jumpDirection = -wallDirection; // Jump away from the wall
+
+    canWallJump = false; // Disable wall jump temporarily
+    isMidAir = true;
+    isJumping = true; // Treat as jumping
+
+    // Visual feedback for wall jump (optional)
+    animationsEvent?.emit( // Use optional chaining
+      Animation(
+        6, // Short duration flash
+        (frame) => {
+          slimeElement.style.background = `linear-gradient(${jumpDirection * 90}deg, ${slimeAppearance.color} ${frame * 15}%, white ${frame * 20}%)`;
+        },
+        (frame) => frame < 1, // End condition
+        () => { slimeElement.style.background = ''; } // Cleanup
+      )
+    );
+
+    // Temporarily boost max velocity for wall jump burst
+    actorObject.setMaxVelocity(constraints.maxVelocity * 1.2);
+
+    activeJumpMovement = startWallJump(
+      baseJumpForce,
+      jumpDirection,
+      () => !isJumping, // Stop when jump key released (or maybe after fixed duration?)
+      () => { // End callback
+        console.log(`Slime ${playerIndex}: Wall jump ended.`);
+        actorObject.resetMaxVelocity(); // Restore normal max velocity
+        activeJumpMovement = null;
+        // Re-enable wall jump after cooldown (handled by groundHit or timer)
+      }
+    );
+    actorObject.addMovement(activeJumpMovement);
+
+    // Delayed action to re-enable wall jump
+    delayedActionsEvent?.emit({ // Use optional chaining
+      slimeId: slimeId,
+      delay: configMovement.WALL_JUMP_COOLDOWN,
+      execute: () => { canWallJump = true; }
+    });
+  };
+
+  /** Initiates a direction change jump movement generator */
+  const initDirectionChangeJump = () => {
+    if (activeJumpMovement) actorObject.removeMovement(activeJumpMovement);
+
+    const baseJumpForce = actorObject.jumpAcceleration * 1.2; // Slightly higher jump
+
+    isMidAir = true;
+    isJumping = true;
+    directionChangeFrames = 0; // Reset bonus window
+
+    activeJumpMovement = startDirectionChangeJump(
+      actorObject, // Pass the actor itself
+      baseJumpForce,
+      () => { },//!isJumping,
+      () => { // End callback
+        console.log(`Slime ${playerIndex}: Direction change jump ended.`);
+        activeJumpMovement = null;
+      }
+    );
+    actorObject.addMovement(activeJumpMovement);
+  };
+
+
+  // --- Input Event Handlers ---
+
+  const onJumpPressed = () => {
+    console.log(`Slime ${playerIndex}: Jump pressed. MidAir: ${isMidAir}, HuggingWall: ${isHuggingWall}, CanWallJump: ${canWallJump}, DirChangeFrames: ${directionChangeFrames}`);
+    // Prevent starting a new jump if already holding jump key
+    if (isJumping) return;
+
+    if (!isMidAir) { // Ground jump
+      // Check for direction change bonus jump first
+      if (directionChangeFrames > 0) {
+        console.log(`Slime ${playerIndex}: Direction Change Jump!`);
+        initDirectionChangeJump();
+      } else {
+        console.log(`Slime ${playerIndex}: Standard Ground Jump.`);
+        initJump(1.0); // Standard jump force multiplier
+      }
+    } else if (isHuggingWall !== 0 && canWallJump) { // Wall jump
+      console.log(`Slime ${playerIndex}: Wall Jump!`);
+      initWallJump(isHuggingWall);
+    }
+  };
+
+  const onJumpReleased = () => {
+    console.log(`Slime ${playerIndex}: Jump released.`);
+    isJumping = false; // Key is no longer held
+    // The activeJumpMovement's kill signal will handle stopping the upward force
+  };
+
   const onMovementPress = (direction) => {
-    // Check if this is a direction change
-    if (runningDirection !== 0 && runningDirection !== direction) {
-      lastDirectionChangeTime = directionChangeWindow;
+    if ((direction === -1 && isRunningLeft) || (direction === 1 && isRunningRight)) {
+      return; // Do nothing if already running in the pressed direction
     }
-
-    if (direction === -1) {
-      isRunningLeft = true;
-      isRunningRight = false;
+    // Check if this press constitutes a direction change while running
+    if (isRunning && runningDirection !== 0 && runningDirection !== direction) {
+      // Start or reset the direction change bonus window timer
+      directionChangeFrames = configMovement.DIRECTION_CHANGE_WINDOW;
+      console.log(`Slime ${playerIndex}: Direction change detected, bonus window started.`);
     } else {
-      isRunningRight = true;
-      isRunningLeft = false;
+      // If not a direction change, ensure the bonus window isn't active
+      // directionChangeFrames = 0; // Reset if moving same direction or starting from stop? Maybe only reset on jump?
     }
 
+    // Update running state flags
     runningDirection = direction;
     isRunning = true;
+    if (direction === -1) { isRunningLeft = true; isRunningRight = false; }
+    else { isRunningRight = true; isRunningLeft = false; }
 
-    // Check for bonus run condition
-    if (isGrounded &&
-      Math.sign(actorObject.getSpeed()) !== 0 &&
-      Math.sign(actorObject.getSpeed()) !== direction &&
-      Math.abs(actorObject.getSpeed()) > bonusThreshold) {
+    // Determine if bonus run conditions are met:
+    // Must be on ground, currently moving, changing direction, and above speed threshold.
+    const currentSpeed = actorObject.getSpeed();
+    if (!isMidAir &&
+      Math.sign(currentSpeed) !== 0 &&
+      Math.sign(currentSpeed) !== direction &&
+      Math.abs(currentSpeed) > bonusThreshold) {
       initBonusRun(direction);
     } else {
-      initRun(direction);
+      initRun(direction); // Initiate standard run
     }
   };
 
-  /**
-   * Handles movement button release
-   * 
-   * @param {number} direction - Direction (-1 for left, 1 for right)
-   */
   const onMovementRelease = (direction) => {
-    console.log('release movement', direction)
-    if (direction === -1) {
-      isRunningLeft = false;
-      if (runningDirection === -1) {
-        runningDirection = 0;
-        isRunning = false;
-      }
-    } else {
-      isRunningRight = false;
-      if (runningDirection === 1) {
-        runningDirection = 0;
-        isRunning = false;
-      }
+    console.log(`Slime ${playerIndex}: Movement released: ${direction}`);
+    if (direction === -1) { isRunningLeft = false; }
+    else { isRunningRight = false; }
+
+    // Update overall running state only if the released direction was the active one
+    if (runningDirection === direction) {
+      isRunning = false;
+      runningDirection = 0;
+      // Note: The activeRunMovement's kill signal handles stopping the force.
     }
   };
 
-  /**
-   * Handles duck button press
-   */
-  const onDuckPress = () => {
-    isDucking = true;
-  };
+  const onDuckPress = () => { isDucking = true; };
+  const onDuckRelease = () => { isDucking = false; };
 
-  /**
-   * Handles duck button release
-   */
-  const onDuckRelease = () => {
-    isDucking = false;
-  };
+  // --- Physics Event Handlers (from Actor) ---
 
-  // Game event handlers
-  const onGameStart = (data) => { };
-  const onGameEnd = (data) => { };
-  const onRoundStart = (data) => { };
-  const onRoundEnd = (data) => { };
-
-  /**
-   * Handles ground collision
-   */
   const onGroundHit = () => {
-    console.log(`Ground hit for slime ${teamNumber}`);
-    isGrounded = true;
-    hasWallJump = true;
-  };
-
-  /**
-   * Handles wall collision
-   * 
-   * @param {number} event - Wall direction (-1 for left, 1 for right, 0 for none)
-   */
-  const onWallHit = (event) => {
-    console.log(`Wall hit ${event} for slime ${teamNumber}`);
-    if (event !== 0) {
-      isHuggingWall = event;
-    } else {
-      delayedActionsEvent.emit({
-        slimeId: slimeId,
-        delay: 10,
-        execute: () => {
-          isHuggingWall = 0;
-        },
-      });
+    console.log(`Slime ${playerIndex}: Ground hit.`);
+    if (isMidAir) { // Only trigger landing logic if previously in air
+      isMidAir = false;
+      canWallJump = true; // Reset wall jump ability on landing
+      // Optional: Reset jump state if needed, though key release handles stopping force
+      // isJumping = false;
     }
   };
 
-  /**
-   * Handles window resize
-   * 
-   * @param {Object} newSize - New size constraints
-   */
-  const onResize = (newSize) => {
-    setupConstants(newSize);
+  const onWallHit = (direction) => { // Direction: -1 left, 1 right, 0 none
+    console.log(`Slime ${playerIndex}: Wall hit event: ${direction}`);
+    isHuggingWall = direction; // Update wall contact state
+    // If hitting a wall, potentially cancel opposite run bonus?
+    // hasDirectionChangeBonus = false;
+  };
+
+  const onNetHit = (direction) => {
+    console.log(`Slime ${playerIndex}: Net hit event: ${direction}`);
+    isHuggingWall = direction; // Treat net contact similar to wall contact
+  };
+
+  // --- Game State/Controller Event Handlers ---
+
+  const onTeamSwitch = (newTeam) => {
+    console.log(`Slime ${playerIndex}: Switching to team ${newTeam}`);
+    currentTeam = newTeam;
+    // Update visual appearance
+    slimeAppearance.color = newTeam === 1 ? configTeams.TEAM_1_COLOR : configTeams.TEAM_2_COLOR;
+    slimeElement.style.backgroundColor = slimeAppearance.color;
+    // Update physics boundaries via Actor
+    actorObject.updateTeam(currentTeam);
+  };
+
+  const onResize = (newSizeConstraints) => {
+    console.log(`Slime ${playerIndex}: Resize detected.`);
+    // Recalculate size-dependent constants
+    setupConstants(newSizeConstraints); // Pass the new constraints object
+    // Update graphics element size
     slimeElement.style.width = `${slimeWidth}px`;
     slimeElement.style.height = `${slimeHeight}px`;
+    // TODO: Actor might also need constraint updates if boundaries change absolutely
+    // actorObject.updateConstraints(newRight, newLeft, newGround);
   };
 
-  /**
-   * Handles team switching
-   * 
-   * @param {number} switchTeam - New team (1 or 2)
-   */
-  const onTeamSwitch = (switchTeam) => {
-    currentTeam = switchTeam;
-
-    if (switchTeam === 1) {
-      slimeElement.classList.add('teamColorOne');
-      slimeElement.classList.remove('teamColorTwo');
-      slimeAppearance.color = 'gold';
-    } else {
-      slimeElement.classList.add('teamColorTwo');
-      slimeElement.classList.remove('teamColorOne');
-      slimeAppearance.color = 'crimson';
-    }
-
-    // Update Actor's team boundary constraints
-    if (actorObject && typeof actorObject.updateTeam === 'function') {
-      actorObject.updateTeam(currentTeam);
-    }
-  };
-
-  // Initialize team appearance
-  onTeamSwitch(team);
-
-  /**
-   * Handles net collision
-   * 
-   * @param {number} direction - Direction (-1 for left, 1 for right)
-   */
-  const onNetHit = (direction) => {
-    console.log(`Net hit for slime ${teamNumber}, direction: ${direction}`);
-    // Handle net collisions
-    if (direction !== 0) {
-      isHuggingWall = direction;
-    } else {
-      delayedActionsEvent.emit({
-        slimeId: slimeId,
-        delay: 10,
-        execute: () => {
-          isHuggingWall = 0;
-        },
-      });
-    }
-  };
-
-  /**
-   * Filters delayed actions to only process those for this slime
-   * 
-   * @param {Object} action - Delayed action
-   * @returns {boolean} True if action should be processed
-   */
-  const filterDelayedActions = (action) => {
-    if (!action.slimeId || action.slimeId === slimeId) {
-      return true;
-    }
-    return false;
-  };
-
-  // Set up delayed actions filtering
-  if (delayedActionsEvent && delayedActionsEvent.originalEmit) {
-    // Already set up
-  } else if (delayedActionsEvent) {
-    delayedActionsEvent.originalEmit = delayedActionsEvent.emit;
-    delayedActionsEvent.emit = (action) => {
-      if (!action.slimeId) {
-        action.slimeId = slimeId;
-      }
-      delayedActionsEvent.originalEmit(action);
-    };
-  }
-
-  // Subscribe to events
-  const listeners = [
+  // --- Subscriptions ---
+  // Subscribe to input keys
+  const keyListeners = [
     keys.jumpPress.subscribe(onJumpPressed),
     keys.jumpRelease.subscribe(onJumpReleased),
     keys.movementPress.subscribe(onMovementPress),
     keys.movementRelease.subscribe(onMovementRelease),
     keys.duckPress.subscribe(onDuckPress),
     keys.duckRelease.subscribe(onDuckRelease),
-
-    game.gameStart.subscribe(onGameStart),
-    game.gameEnd.subscribe(onGameEnd),
-    game.roundStart.subscribe(onRoundStart),
-    game.roundEnd.subscribe(onRoundEnd),
-    game.sizeChange.subscribe(onResize),
-    game.teamSwitchEvent.subscribe(onTeamSwitch),
-
+  ];
+  // Subscribe to actor physics events
+  const actorListeners = [
     actorObject.groundHitEvent.subscribe(onGroundHit),
     actorObject.wallHitEvent.subscribe(onWallHit),
-    actorObject.netHitEvent?.subscribe(onNetHit), // Only subscribe if the event exists
-  ].filter(Boolean); // Filter out any undefined listeners (if netHitEvent doesn't exist)
+    actorObject.netHitEvent.subscribe(onNetHit),
+  ];
+  // Subscribe to game controller events (if available)
+  const gameListeners = [
+    gameController?.sizeChange?.subscribe(onResize),
+    gameController?.teamSwitchEvent?.subscribe(onTeamSwitch),
+    // Add gameStart, gameEnd etc. if needed
+  ].filter(Boolean); // Filter out null/undefined listeners if gameController events don't exist
 
-  /**
-   * Reset slime position and state
-   * 
-   * @param {Object} pos - New position {x, y}
-   */
-  const reset = (pos) => {
-    // Reset position
-    actorObject.pos.x = pos.x;
-    actorObject.pos.y = pos.y;
+  const allListeners = [...keyListeners, ...actorListeners, ...gameListeners];
 
-    // Reset velocity
-    actorObject._velocity.x = 0;
-    actorObject._velocity.y = 0;
+  // Initialize appearance and team state
+  onTeamSwitch(currentTeam);
 
-    // Reset state flags
-    isJumping = false;
-  };
+  // --- Public Methods ---
 
-  /**
-   * Destroys the slime and cleans up resources
-   */
-  const destroy = () => {
-    slimeElement.remove();
-    listeners.forEach((listener) => {
-      if (listener && typeof listener.unsubscribe === 'function') {
-        listener.unsubscribe();
-      }
-    });
-  };
-
-  /**
-   * Updates slime physics
-   */
+  /** Updates the slime's state (primarily by updating its actor) */
   const update = () => {
-    if (actorObject && typeof actorObject.update === 'function') {
-      actorObject.update();
+    // Decrement direction change bonus window timer
+    if (directionChangeFrames > 0) {
+      directionChangeFrames--;
     }
-
-    if (lastDirectionChangeTime > 0) {
-      lastDirectionChangeTime--;
-    }
+    // Update the physics actor
+    actorObject.update();
+    // Update mid-air status (redundant if only set on jump/ground hit?)
+    // isMidAir = actorObject.pos.y < actorObject.ground;
   };
 
-  /**
-   * Renders slime to the DOM
-   */
+  /** Renders the slime using the graphics module */
   const render = () => {
-    renderSlime(
-      slimeElement,
-      actorObject.pos,
-      actorObject._velocity,
-      slimeWidth,
-      slimeHeight
-    );
+    // Ensure actorObject and its properties are valid before rendering
+    if (actorObject && actorObject.pos && actorObject.velocity) {
+      renderSlime(
+        slimeElement,
+        actorObject.pos,
+        actorObject.velocity, // Pass the renamed 'velocity' property
+        slimeWidth,
+        slimeHeight
+      );
+    } else {
+      console.error(`Slime ${slimeId}: Cannot render, invalid actor state.`);
+    }
   };
 
+  /** Cleans up resources (DOM element, event listeners) */
+  const destroy = () => {
+    console.log(`Destroying slime ${slimeId}`);
+    slimeElement?.remove(); // Remove element from DOM
+    // Unsubscribe all listeners
+    allListeners.forEach(listener => listener?.unsubscribe?.());
+    // Remove any active movements? Actor might handle this if needed.
+    if (activeRunMovement) actorObject.removeMovement(activeRunMovement);
+    if (activeJumpMovement) actorObject.removeMovement(activeJumpMovement);
+  };
+
+  // --- Return Public Slime Object ---
   return {
+    slimeId,      // Unique identifier
+    playerIndex,  // Identifier for the controlling player
+    get team() { return currentTeam; }, // Read-only team access
+    actorObject,  // Expose the actor object for interactions (e.g., collision checks)
+
+    // Core methods
     update,
     render,
     destroy,
-    slimeId,
-    teamNumber,
-    team: currentTeam,
-    ao: actorObject
   };
 }

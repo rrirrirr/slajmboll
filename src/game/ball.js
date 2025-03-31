@@ -1,556 +1,357 @@
 import { Event } from '../core/events.js';
-import Actor from './actor.js';
+import Actor from './actor.js'; // Uses refactored Actor
 import {
-  configPhysics as physics,
+  configPhysics, // Renamed import from physics.js
   resolveCircleCollision,
-  circlesCollide,
-  calculateDistance
-} from '../core/physics.js';
-
-// +++ Add Clamp Helper Function +++
-// (If you don't have it imported or available elsewhere)
-/**
- * Clamps a value between a minimum and maximum value.
- * @param {number} value The value to clamp.
- * @param {number} min The minimum allowed value.
- * @param {number} max The maximum allowed value.
- * @returns {number} The clamped value.
- */
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(value, max));
-}
-// +++ End Clamp Helper Function +++
-
-
-// +++ Add Circle-Segment Collision Helper +++
-/**
- * Checks for collision between a circle (ball) and a line segment.
- * @param {number} p1x - Start X of segment.
- * @param {number} p1y - Start Y of segment.
- * @param {number} p2x - End X of segment.
- * @param {number} p2y - End Y of segment.
- * @param {object} ballGeom - The ball geometry {x, y, radius}.
- * @returns {boolean} True if collision, false otherwise.
- */
-function checkCollisionCircleSegment(p1x, p1y, p2x, p2y, ballGeom) {
-  // Find the closest point on the infinite line containing the segment
-  const lineLenSq = (p2x - p1x) ** 2 + (p2y - p1y) ** 2;
-  let t = 0; // Parameter along the line segment (0=p1, 1=p2)
-  if (lineLenSq > 1e-6) { // Avoid division by zero if p1 and p2 are the same
-    t = ((ballGeom.x - p1x) * (p2x - p1x) + (ballGeom.y - p1y) * (p2y - p1y)) / lineLenSq;
-    t = clamp(t, 0, 1); // Clamp t to be within the segment [0, 1]
-  }
-
-  // Calculate coordinates of the closest point on the segment
-  const closestX = p1x + t * (p2x - p1x);
-  const closestY = p1y + t * (p2y - p1y);
-
-  // Calculate distance squared from ball center to closest point
-  const dx = ballGeom.x - closestX;
-  const dy = ballGeom.y - closestY;
-  const distanceSquared = dx * dx + dy * dy;
-
-  // Check if the distance is less than the ball's radius squared
-  return distanceSquared < ballGeom.radius * ballGeom.radius;
-}
-// +++ End Circle-Segment Collision Helper +++
+  checkCollisionCircleSegment,
+  applySeparation,
+  // Note: clamp is used internally by physics helpers now, no direct import needed here
+} from '../core/physics.js'; // Uses refactored Physics
+import {
+  calculateBallSize,
+  updateBallElementSize,
+  renderBall,
+  setBallColor
+} from '../ui/ballGraphics.js'; // Uses new Graphics module
+import { dimensions as configDimensions } from '../../config.js'; // Import dimensions config
 
 /**
- * Creates a ball entity for the game
- * 
+ * Creates a ball entity for the game.
+ * Manages physics state and interactions, delegates rendering.
+ *
  * @param {Object} position - Initial position {x, y}
- * @param {Object} dimensions - Ball dimensions {radius}
- * @param {Object} constraints - Movement constraints
- * @param {Object} field - Field dimensions
+ * @param {Object} ballConfigDims - Ball dimensions from config { radius } (e.g., configDimensions.BALL_RADIUS).
+ * @param {Object} constraints - Movement constraints { rightBoundry, leftBoundry, ground, maxVelocity }
+ * @param {Object} field - Field dimensions { width, height }
  * @param {Object} [options={}] - Additional ball options
- * @param {number} [options.bounceFactor] - Custom bounce factor (0-1)
- * @param {boolean} [options.canBounceOnGround=true] - Whether ball can bounce on ground
- * @returns {Object} Ball object with physics and rendering methods
+ * @param {number} [options.bounceFactor] - Custom bounce factor (0-1). Defaults to configPhysics.BOUNCE_FACTOR.
+ * @param {boolean} [options.canBounceOnGround=true] - Whether ball can bounce on ground (affects scoring).
+ * @returns {Object} Ball object instance.
  */
-export function Ball(position, dimensions, constraints, field, options = {}) {
-  // Set default options
+export function Ball(position, ballConfigDims, constraints, field, options = {}) {
+  // --- Configuration & State ---
   const ballOptions = {
-    bounceFactor: physics.BOUNCE_FACTOR,
+    bounceFactor: configPhysics.BOUNCE_FACTOR, // Default bounce factor from config
     canBounceOnGround: true,
-    ...options
+    ...options // Merge provided options
   };
 
-  const fieldDimensions = field;
+  let currentField = { ...field }; // Local copy of field dimensions
+  // Calculate initial size using the graphics helper
+  let currentBallSize = calculateBallSize(currentField, ballConfigDims); // Initial diameter
+  let graphicsElement = null; // Reference to the DOM element
 
-  /**
-   * Track recent collisions to prevent ball from getting stuck to slimes
-   * @type {Map<string, number>}
-   */
-  const recentCollisions = new Map();
+  // --- Events ---
+  const hitGroundEvent = Event('ball_hit_ground');
+  const hitNetEvent = Event('ball_hit_net');
+  const hitSlimeEvent = Event('ball_hit_slime');
+  const hitWallEvent = Event('ball_hit_wall');
+  const scoredEvent = Event('ball_scored'); // Event emitted when scoring occurs
 
-  // Create events for ball collisions
-  const hitGroundEvent = Event('ball hit ground');
-  const hitNetEvent = Event('ball hit net');
-  const hitSlimeEvent = Event('ball hit slime');
-  const hitWallEvent = Event('ball hit wall');
-  const scoredEvent = Event('ball scored');
-
-  // Create ball actor for physics, with frictionless=true to prevent horizontal slowdown
+  // --- Physics Actor ---
+  // Creates Actor instance using refactored Actor.js
   const actorObject = Actor(
     position,
     { x: 0, y: 0 },
-    dimensions.radius,
+    ballConfigDims.radius,
     constraints.rightBoundry,
     constraints.leftBoundry,
     constraints.ground,
     constraints.maxVelocity,
-    null, // No resize event needed for ball
-    0,    // No team
-    true  // Set to frictionless so ball doesn't slow down
+    null, // No resize event needed directly for Actor
+    0,    // Team (0 for ball)
+    true  // frictionless = true
   );
 
-  let ballSize = calculateBallSize();
+  // --- Private Helper Functions ---
 
   /**
-    * Calculates the ball size based on field dimensions
-    * 
-    * @returns {number} The calculated ball size in pixels
-    */
-  function calculateBallSize() {
-    if (!fieldDimensions || !fieldDimensions.width) return 40; // fallback
+   * Determines scoring side and emits the scored event.
+   * Called ONLY when a non-bouncing ball hits the ground.
+   * @private
+   */
+  const _triggerScore = () => {
+    // Determine which side scored based on net position (center)
+    // Team 2 scores if ball on left, Team 1 if on right
+    const scoringSide = actorObject.pos.x < currentField.width / 2 ? 2 : 1;
+    console.log(`Ball: Ground hit score triggered for team ${scoringSide}`); // Added log
+    scoredEvent.emit({
+      scoringSide,
+      position: { ...actorObject.pos }
+    });
+  };
 
-    // Use same scaling logic as slimes, based on field width
-    const areaWidth = fieldDimensions.width;
-    const scaledSize = (areaWidth / physics.K) * dimensions.radius;
+  /**
+   * Checks for collision with the flat base segment of a slime.
+   * @param {Object} slimeActor - The slime's actor object.
+   * @param {Object} ballGeom - Ball geometry { x, y, radius }.
+   * @returns {boolean} True if collision detected.
+   * @private
+   */
+  const _checkCollisionWithSlimeBase = (slimeActor, ballGeom) => {
+    const slimeX = slimeActor.pos.x;
+    const slimeY = slimeActor.pos.y; // Bottom baseline Y
+    const slimeRadius = slimeActor.realRadius; // Half-width of the base
 
-    // Return diameter (radius * 2)
-    return scaledSize * 2;
-  }
-
-  // Subscribe to actor's collision events
-  actorObject.groundHitEvent.subscribe(data => {
-    hitGroundEvent.emit({ x: actorObject.pos.x, y: actorObject.pos.y });
-
-    // Only check scoring for gameplay balls that can't bounce on ground
-    if (!ballOptions.canBounceOnGround) {
-      checkScoring();
+    // Quick AABB pre-check
+    if (Math.abs(ballGeom.y - slimeY) >= ballGeom.radius ||
+      Math.abs(ballGeom.x - slimeX) >= slimeRadius + ballGeom.radius) {
+      return false;
     }
 
-    // If this ball can't bounce on ground, stop it from bouncing
-    if (!ballOptions.canBounceOnGround) {
-      actorObject._velocity.y = 0;
+    const segmentP1x = slimeX - slimeRadius;
+    const segmentP2x = slimeX + slimeRadius;
+
+    // Use the helper from physics.js
+    return checkCollisionCircleSegment(
+      segmentP1x, slimeY, segmentP2x, slimeY,
+      ballGeom
+    );
+  };
+
+  /**
+   * Checks for collision with the upper arc segment of a slime.
+   * @param {Object} slimeActor - The slime's actor object.
+   * @param {Object} ballGeom - Ball geometry { x, y, radius }.
+   * @param {number} distSq - Pre-calculated squared distance between ball center and slime base center.
+   * @returns {boolean} True if collision detected.
+   * @private
+   */
+  const _checkCollisionWithSlimeArc = (slimeActor, ballGeom, distSq) => {
+    const slimeCollisionRadius = slimeActor.realRadius; // Arc radius is same as base half-width
+    const sumRadii = slimeCollisionRadius + ballGeom.radius;
+    const sumRadiiSq = sumRadii * sumRadii;
+
+    // Check overlap with the full circle representing the arc
+    // AND filter: ball's center must be above the slime's base to hit the arc
+    return distSq < sumRadiiSq && ballGeom.y <= slimeActor.pos.y;
+  };
+
+  /**
+   * Resolves the physics response after a ball-slime collision is detected.
+   * @param {Object} slimeActor - The slime's actor object.
+   * @param {Object} ballGeom - Ball geometry { x, y, radius }.
+   * @param {number} distSq - Squared distance between centers.
+   * @private
+   */
+  const _resolveSlimeHit = (slimeActor, ballGeom, distSq) => {
+    const slimePos = { x: slimeActor.pos.x, y: slimeActor.pos.y };
+    // Use current velocities from the actor objects
+    const ballVelocity = { ...actorObject.velocity }; // Use renamed property
+    const slimeVelocity = { ...(slimeActor.velocity || { x: 0, y: 0 }) }; // Use renamed property
+
+    // Calculate collision normal (vector from slime center to ball center)
+    const distance = Math.max(Math.sqrt(distSq), 1e-6); // Use inline epsilon
+    const nx = (ballGeom.x - slimePos.x) / distance;
+    const ny = (ballGeom.y - slimePos.y) / distance;
+
+    // Resolve using billiard physics from physics.js
+    const newVelocities = resolveCircleCollision(
+      ballGeom, ballVelocity, configPhysics.BALL_MASS,
+      slimePos, slimeVelocity, configPhysics.SLIME_MASS,
+      configPhysics.SLIME_BOUNCE_FACTOR,
+      nx, ny // Pass pre-calculated normal
+    );
+
+    // Apply new velocities back to the actor objects
+    actorObject.velocity.x = newVelocities.v1.x; // Use renamed property
+    actorObject.velocity.y = newVelocities.v1.y; // Use renamed property
+    if (slimeActor.velocity) {
+      slimeActor.velocity.x = newVelocities.v2.x; // Use renamed property
+      slimeActor.velocity.y = newVelocities.v2.y; // Use renamed property
+      slimeActor.setCollisionFlag?.(true, 2); // Notify slime actor
     }
+
+    // Apply separation force to prevent sticking (using physics.js helper)
+    applySeparation(actorObject.pos, actorObject.realRadius, slimeActor.pos, slimeActor.realRadius);
+
+    // Set ball's own collision flag
+    actorObject.setCollisionFlag?.(true, 2);
+  };
+
+  // --- Event Listeners ---
+  // Listen to the ground hit event from the internal Actor
+  actorObject.groundHitEvent.subscribe(() => {
+    // First, emit the general ground hit event for anyone listening
+    hitGroundEvent.emit({ position: { ...actorObject.pos } });
+
+    // Then, check if this specific ball type should trigger a score on ground hit
+    if (!ballOptions.canBounceOnGround) {
+      _triggerScore(); // Call the simplified scoring logic
+      // Ensure vertical velocity is zeroed *after* triggering score if needed
+      // (Actor might already do this depending on bounce factor, but belt-and-suspenders)
+      actorObject.velocity.y = 0;
+    }
+    // If it *can* bounce, the Actor's physics already handled the bounce.
   });
 
+  // Listen to wall hit event from the internal Actor
   actorObject.wallHitEvent.subscribe(direction => {
     if (direction !== 0) {
       hitWallEvent.emit({ side: direction === -1 ? 'left' : 'right' });
     }
   });
 
+  // Listen to net hit event from the internal Actor
   actorObject.netHitEvent.subscribe(direction => {
-    hitNetEvent.emit({ x: actorObject.pos.x, y: actorObject.pos.y });
+    // The Actor handles the physics, just relay the event
+    hitNetEvent.emit({
+      direction,
+      position: { ...actorObject.pos },
+      velocity: { ...actorObject.velocity } // Use renamed property
+    });
   });
 
-  // Ball size (diameter) in pixels
-  // let ballSize = 40; // Default size
+  // --- Public Methods ---
 
   /**
-   * Reference to the ball DOM element
-   * @type {HTMLElement}
-   */
-  let element = null;
-
-  /**
-   * Sets the DOM element for the ball
-   * 
-   * @param {HTMLElement} el - Ball DOM element
+   * Sets the DOM element used for rendering this ball.
+   * @param {HTMLElement} el - The ball's DOM element.
    */
   const setElement = (el) => {
-    element = el;
-    if (element) {
-      updateBallSize(fieldDimensions);
+    graphicsElement = el;
+    if (graphicsElement) {
+      // Ensure size is correct initially using the graphics helper
+      updateBallElementSize(graphicsElement, currentBallSize);
+    } else {
+      console.warn("Ball.setElement: Received null or invalid element.");
     }
   };
 
   /**
-   * Handles field resize events
-   * 
-   * @param {Object} newFieldDimensions - New field dimensions
+   * Checks and resolves collision between the ball and a single slime.
+   * @param {Object} slime - Slime object, containing the actor object `slime.actorObject`.
+   * @returns {boolean} True if a collision occurred and was resolved.
    */
-  const handleResize = (newFieldDimensions) => {
-    // Update field dimensions reference
-    if (newFieldDimensions) {
-      fieldDimensions = newFieldDimensions;
-    }
-
-    // Update ball size
-    updateBallSize(fieldDimensions);
-  };
-
-  /**
-   * Creates a DOM element for the ball
-   * 
-   * @returns {HTMLElement} Ball DOM element
-   */
-  const createElement = () => {
-    // Create ball element if it doesn't exist
-    element = document.createElement('div');
-    element.classList.add('ball');
-
-    // Set size based on dimensions
-    const calculatedSize = (field.width / 20) * dimensions.radius;
-    element.style.width = `${calculatedSize}px`;
-    element.style.height = `${calculatedSize}px`;
-
-    ballSize = calculatedSize;
-    return element;
-  };
-
-  /**
-   * Cache of slime dimensions to avoid DOM queries every frame
-   * @type {Map<string, Object>}
-   */
-  const slimeDimensionsCache = new Map();
-
-  /**
-   * Updates the dimensions cache for a slime
-   * 
-   * @param {string} slimeId - Unique ID of the slime
-   */
-  const updateSlimeDimensions = (slimeId) => {
-    const slimeElement = document.querySelector(`[data-slime-id="${slimeId}"]`);
-    if (slimeElement) {
-      const width = parseInt(slimeElement.style.width);
-      const height = parseInt(slimeElement.style.height);
-
-      if (width && height) {
-        slimeDimensionsCache.set(slimeId, { width, height });
-      }
-    }
-  };
-
-
-  /**
-   * Updates the ball size based on field dimensions
-   * 
-   * @param {Object} fieldDimensions - Current field dimensions
-   */
-  const updateBallSize = (fieldDimensions) => {
-    if (!fieldDimensions || !fieldDimensions.width) return;
-
-    // Use same scaling logic as slimes, based on field width
-    const areaWidth = fieldDimensions.width;
-    const scaledSize = (areaWidth / physics.K) * dimensions.radius;
-
-    // Update ball size
-    ballSize = scaledSize * 2; // Diameter = radius * 2
-
-    // Update DOM element if it exists
-    if (element) {
-      element.style.width = `${ballSize}px`;
-      element.style.height = `${ballSize}px`;
-    }
-
-    // Return new size for reference
-    return ballSize;
-  };
-
-  /**
-   * Checks if a team scored
-   */
-  const checkScoring = () => {
-    // Ball must be on or very near the ground
-    if (actorObject.pos.y + ballSize / 2 < constraints.ground - 5) return;
-
-    // Determine which side scored
-    const scoringSide = actorObject.pos.x < field.width / 2 ? 2 : 1;
-
-    // Only score if the ball has very little vertical velocity
-    if (Math.abs(actorObject._velocity.y) < 0.8) {
-      scoredEvent.emit({
-        scoringSide,
-        position: { x: actorObject.pos.x, y: actorObject.pos.y }
-      });
-    }
-  };
-
-  /**
-       * Optimized collision check for accurate half-circle shape.
-       * V4: Reduced redundant calculations.
-       * @param {Object} slime - Slime object. Contains slime.ao (actor) with .realRadius
-       * @returns {boolean} True if collision occurred
-       */
   const checkSlimeCollision = (slime) => {
-    // --- Check for valid slime object ---
-    if (!slime || !slime.ao || typeof slime.ao.realRadius !== 'number') {
+    // Validate slime input
+    if (!slime?.actorObject?.realRadius) {
+      // console.warn("checkSlimeCollision: Invalid slime object provided."); // Reduced logging noise
       return false;
     }
 
-    // --- Calculate Common Values ---
-    const ballX = actorObject.pos.x;
-    const ballY = actorObject.pos.y;
-    const ballRadius = ballSize / 2;
+    const slimeActor = slime.actorObject;
+    // Use current ball geometry for checks
+    const ballGeom = { x: actorObject.pos.x, y: actorObject.pos.y, radius: actorObject.realRadius };
 
-    const slimeX = slime.ao.pos.x;
-    const slimeY = slime.ao.pos.y; // Bottom baseline Y
-    const slimeCollisionRadius = slime.ao.realRadius; // Height/Arc Radius
-
-    // Vector from slime center to ball center
-    const dx = ballX - slimeX; // Renamed from dx_arc for broader use
-    const dy = ballY - slimeY; // Renamed from dy_arc for broader use
-
-    // Squared distance between centers
-    const distSq = dx * dx + dy * dy; // Renamed from distSq_arc
-
-    // Combined radii squared (for arc check)
-    const sumRadii = slimeCollisionRadius + ballRadius;
-    const sumRadiiSq = sumRadii * sumRadii;
+    // Calculate squared distance between ball center and slime *base* center
+    const dx = ballGeom.x - slimeActor.pos.x;
+    const dy = ballGeom.y - slimeActor.pos.y;
+    const distSq = dx * dx + dy * dy;
 
     let collisionDetected = false;
     let collisionType = 'none';
 
-    // --- Part 1: Check Collision with Flat Bottom Segment ---
-    // Check if ball is potentially close enough to the segment vertically and horizontally first
-    // This is a quick AABB-like pre-check
-    if (Math.abs(dy) < ballRadius && Math.abs(dx) < slimeCollisionRadius + ballRadius) {
-      const segmentP1x = slimeX - slimeCollisionRadius;
-      const segmentP2x = slimeX + slimeCollisionRadius;
-      const segmentY = slimeY;
-
-      if (checkCollisionCircleSegment(
-        segmentP1x, segmentY, segmentP2x, segmentY,
-        { x: ballX, y: ballY, radius: ballRadius }
-      )) {
-        collisionDetected = true;
-        collisionType = 'bottom';
-      }
+    // Check collision types using private helpers
+    if (_checkCollisionWithSlimeBase(slimeActor, ballGeom)) {
+      collisionDetected = true;
+      collisionType = 'bottom';
+    } else if (_checkCollisionWithSlimeArc(slimeActor, ballGeom, distSq)) {
+      collisionDetected = true;
+      collisionType = 'arc';
     }
 
-    // --- Part 2: Check Collision with Arc (only if bottom didn't hit) ---
-    if (!collisionDetected) {
-      // Check overlap with the full circle AND position filter
-      if (distSq < sumRadiiSq && ballY <= slimeY + ballRadius) {
-        collisionDetected = true;
-        collisionType = 'arc';
-      }
-    }
-
-    // --- Part 3: Resolve Collision if Detected ---
+    // Resolve if detected
     if (collisionDetected) {
-      // --- Optimized Collision Resolution ---
-      const ballVelocity = { ...actorObject._velocity };
-      const slimeVelocity = { ...(slime.ao._velocity || { x: 0, y: 0 }) };
-      const ballMass = 1;
-      const slimeMass = 5;
-      const ballPos = { x: ballX, y: ballY };
-      const slimePos = { x: slimeX, y: slimeY };
+      _resolveSlimeHit(slimeActor, ballGeom, distSq); // Use private helper
 
-      // Calculate distance ONLY if needed (for normalization and separation)
-      // Reuse dx, dy calculated earlier
-      const distance = Math.sqrt(distSq); // Perform sqrt only now
-      const nx = (distance > 1e-6) ? dx / distance : 1; // Normalize X (handle zero dist)
-      const ny = (distance > 1e-6) ? dy / distance : 0; // Normalize Y
-
-      // Calculate new velocities
-      const newVelocities = billiardCollision( // Assumes billiardCollision uses normal vector if available or recomputes
-        ballPos, ballVelocity, ballMass,
-        slimePos, slimeVelocity, slimeMass,
-        physics.SLIME_BOUNCE_FACTOR,
-        nx, ny // Pass the calculated normal vector to potentially optimize billiardCollision
-      );
-
-      // Apply velocities
-      actorObject._velocity.x = newVelocities.v1.x;
-      actorObject._velocity.y = newVelocities.v1.y;
-      if (slime.ao?._velocity) {
-        slime.ao._velocity.x = newVelocities.v2.x;
-        slime.ao._velocity.y = newVelocities.v2.y;
-        slime.ao.setCollisionFlag?.(true, 2);
-      }
-
-      // Separation logic using pre-calculated distance and normal
-      const overlap = (ballRadius + slimeCollisionRadius) - distance;
-      const separationBuffer = 1;
-      if (overlap > 0) {
-        const separationX = nx * (overlap + separationBuffer);
-        const separationY = ny * (overlap + separationBuffer);
-        actorObject.pos.x += separationX;
-        actorObject.pos.y += separationY;
-      }
-
-      // Set ball collision flag
-      actorObject.setCollisionFlag?.(true, 2);
-
-      // Emit event
-      hitSlimeEvent.emit({ /* ... event data ... */ collisionType: collisionType });
-      // --- End Optimized Collision Resolution ---
-
+      // Emit collision event with relevant data
+      hitSlimeEvent.emit({
+        slimeId: slime.slimeId,
+        teamNumber: slime.team,
+        collisionType: collisionType,
+        position: { ...ballGeom }, // Ball's position at collision
+        velocity: { ...actorObject.velocity } // Ball's velocity *after* resolution
+      });
       return true;
     }
-
-    return false; // No collision detected
-  }; // End of checkSlimeCollision
-
-  /**
-   * Calculates collision response using billiard physics.
-   * Can optionally accept pre-calculated collision normal.
-   * @param {Object} pos1 - Position of first object {x, y}
-   * @param {Object} vel1 - Velocity of first object {x, y}
-   * @param {number} mass1 - Mass of first object
-   * @param {Object} pos2 - Position of second object {x, y}
-   * @param {Object} vel2 - Velocity of second object {x, y}
-   * @param {number} mass2 - Mass of second object
-   * @param {number} [restitution=1] - Coefficient of restitution
-   * @param {number|null} [nx_in=null] - Pre-calculated collision normal x component
-   * @param {number|null} [ny_in=null] - Pre-calculated collision normal y component
-   * @returns {Object} New velocities { v1: {x, y}, v2: {x, y} }
-   */
-  function billiardCollision(pos1, vel1, mass1, pos2, vel2, mass2, restitution = 1, nx_in = null, ny_in = null) {
-    let nx = nx_in;
-    let ny = ny_in;
-
-    // Recalculate normal if not provided
-    if (nx === null || ny === null) {
-      const dx = pos1.x - pos2.x;
-      const dy = pos1.y - pos2.y;
-      // Ensure distance is non-zero for normalization
-      const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1e-6);
-      nx = dx / distance;
-      ny = dy / distance;
-    }
-
-    // Calculate relative velocity
-    const dvx = vel1.x - vel2.x;
-    const dvy = vel1.y - vel2.y;
-
-    // Calculate velocity along the normal
-    const velocityAlongNormal = dvx * nx + dvy * ny;
-
-    // Early exit if objects are moving away from each other along the normal
-    if (velocityAlongNormal > 0) {
-      // console.log('Objects moving away, no collision resolution needed.');
-      return { v1: vel1, v2: vel2 };
-    }
-
-    // Calculate impulse scalar using masses and restitution
-    const impulseFactor = (-(1 + restitution) * velocityAlongNormal) / (1 / mass1 + 1 / mass2);
-
-    // Calculate impulse vector components
-    const impulseX = impulseFactor * nx;
-    const impulseY = impulseFactor * ny;
-
-    // Calculate and return final velocities after applying impulse
-    // v1 = v1 + impulse / mass1
-    // v2 = v2 - impulse / mass2
-    return {
-      v1: { // Ball's new velocity
-        x: vel1.x + (impulseX / mass1),
-        y: vel1.y + (impulseY / mass1)
-      },
-      v2: { // Slime's new velocity
-        x: vel2.x - (impulseX / mass2),
-        y: vel2.y - (impulseY / mass2)
-      }
-    };
-  } // End billiardCollision
-
-  /**
-   * Forces an update of the slime dimensions cache
-   * Should be called when the screen is resized
-   */
-  const updateAllSlimeDimensions = () => {
-    const slimeElements = document.querySelectorAll('[data-slime-id]');
-    slimeElements.forEach(element => {
-      const slimeId = element.getAttribute('data-slime-id');
-      updateSlimeDimensions(slimeId);
-    });
+    return false;
   };
 
+
   /**
-   * Resets the ball with specified position and velocity
-   * 
-   * @param {Object} newPosition - New position {x, y}
-   * @param {Object} [newVelocity={ x: 0, y: 0 }] - New velocity
+   * Resets the ball to a specified position and velocity. Also stops physics (gravity).
+   * @param {Object} newPosition - New position {x, y}.
+   * @param {Object} [newVelocity={ x: 0, y: 0 }] - New velocity.
    */
   const reset = (newPosition, newVelocity = { x: 0, y: 0 }) => {
     actorObject.pos.x = newPosition.x;
     actorObject.pos.y = newPosition.y;
-    actorObject._velocity.x = newVelocity.x;
-    actorObject._velocity.y = newVelocity.y;
+    actorObject.velocity.x = newVelocity.x; // Use renamed property
+    actorObject.velocity.y = newVelocity.y; // Use renamed property
+    stopPhysics(); // Ensure physics (like gravity) is stopped on reset
   };
 
-  /**
-   * Starts ball gravity
-   */
+  /** Starts applying gravity to the ball. */
   const startGravity = () => {
-    actorObject._downwardAcceleration = physics.GRAVITY;
+    // Use the property on the actor object directly
+    actorObject.downwardAcceleration = configPhysics.GRAVITY; // Use renamed property
   };
 
-  /**
-   * Stops ball physics and velocity
-   */
+  /** Stops the ball's movement and physics updates (sets gravity to 0). */
   const stopPhysics = () => {
-    actorObject._downwardAcceleration = 0;
-    actorObject._velocity.x = 0;
-    actorObject._velocity.y = 0;
+    actorObject.downwardAcceleration = 0; // Use renamed property
+    actorObject.velocity.x = 0;        // Use renamed property
+    actorObject.velocity.y = 0;        // Use renamed property
   };
 
-  /**
-   * Updates ball position each frame
-   */
+  /** Updates the ball's physics state for one frame by calling the Actor's update. */
   const update = () => {
     actorObject.update();
+    // Ball-Slime collision checks are performed externally (e.g., in ballManager)
   };
 
-  actorObject.netHitEvent.subscribe(direction => {
-    if (direction !== 0) {
-      // Log the event for debugging
-      console.log(`Ball hit net with direction ${direction}`);
-
-      hitNetEvent.emit({
-        direction,
-        position: { x: actorObject.pos.x, y: actorObject.pos.y },
-        velocity: { x: actorObject._velocity.x, y: actorObject._velocity.y }
-      });
-    }
-  });
-
-  /**
-   * Renders ball position to DOM
-   */
+  /** Renders the ball's current position using the graphics module. */
   const render = () => {
-    if (element) {
-      // Center the ball on its position
-      element.style.left = `${actorObject.pos.x - ballSize / 2}px`;
-      element.style.top = `${actorObject.pos.y - ballSize / 2}px`;
-    }
+    // Delegate rendering to the graphics module function
+    renderBall(graphicsElement, actorObject.pos, currentBallSize);
   };
 
-  /**
-   * Set the ball color
-   * 
-   * @param {string} color - CSS color string
-   */
+  /** Sets the color of the ball via the graphics module. */
   const setColor = (color) => {
-    if (element) {
-      element.style.backgroundColor = color;
-    }
+    // Delegate color setting to the graphics module function
+    setBallColor(graphicsElement, color);
   };
 
+  /** Handles field resize. Recalculates size and updates graphics. */
+  const handleResize = (newFieldDimensions) => {
+    currentField = { ...newFieldDimensions }; // Update local field reference
+    // Recalculate size using the graphics module helper
+    currentBallSize = calculateBallSize(currentField, ballConfigDims);
+    // Update DOM element size using the graphics module function
+    updateBallElementSize(graphicsElement, currentBallSize);
+
+    // TODO: IMPORTANT! The Actor's internal constraints might need updating too.
+    // This requires adding an `updateConstraints` method to Actor.js
+    // Example: actorObject.updateConstraints(currentField.width, 0, newGroundLevel);
+    console.warn("Ball.handleResize: Actor constraints may need updating!");
+  };
+
+  // --- Return Public Interface ---
   return {
+    actorObject, // Expose actor for advanced interactions or debug
+    get element() { return graphicsElement; }, // Read-only access to DOM element
+
+    // Core Methods
     update,
     render,
     reset,
+    setElement, // Link DOM element
+
+    // Control & Config
     startGravity,
     stopPhysics,
-    checkSlimeCollision,
-    createElement,
-    setElement,
-    updateAllSlimeDimensions,
-    handleResize,
     setColor,
-    element,
-    ao: actorObject,
+    handleResize, // Handle screen resizing
+
+    // Collision Method (called externally)
+    checkSlimeCollision,
+
+    // Events
     hitGroundEvent,
     hitNetEvent,
     hitSlimeEvent,
     hitWallEvent,
-    scoredEvent
+    scoredEvent, // Emitted on score
   };
 }
