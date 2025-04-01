@@ -1,267 +1,217 @@
+// Import specific movement config values
+import { movement as configMovement } from '../../config.js';
+
 /**
+ * @fileoverview Defines movement generator functions for game actors.
+ * These generators produce movement vectors ({x, y}) over time,
+ * often controlled by duration, termination signals (like key releases),
+ * and configuration parameters. They are consumed by the Actor's update loop.
+ * @module movements
+ */
+
+/**
+ * Represents the output of a movement generator for a single frame.
  * @typedef {Object} MovementResult
- * @property {number} x - Horizontal movement contribution
- * @property {number} y - Vertical movement contribution
+ * @property {number} x - Horizontal movement contribution this frame.
+ * @property {number} y - Vertical movement contribution this frame.
  */
 
 /**
- * @typedef {Object} MovementObject
- * @property {Function} next - Get next movement update
- * @property {Function} ended - Check if movement has ended
+ * Base generator for frame-based movements.
+ * Yields the result of the callback for a specified number of frames or until terminated.
+ *
+ * @generator
+ * @function frameMovement
+ * @param {number} totalFrames - Maximum number of frames the movement should last.
+ * @param {(remainingFrames: number) => MovementResult | number | boolean} callback
+ * Function called each frame. It receives the number of frames *remaining* (counts down from totalFrames).
+ * Should return a `MovementResult` object {x, y}, a number (interpreted as y-only movement),
+ * or `false` to terminate the movement early.
+ * @param {() => boolean} shouldTerminate
+ * A function that returns `true` if the movement should terminate immediately (e.g., key released).
+ * @param {Function} [onEnd=() => {}]
+ * An optional callback function executed when the generator finishes,
+ * either by completing all frames or by being terminated early.
+ * @yields {MovementResult | number | boolean} The result from the callback function for the current frame.
  */
-
-/**
- * Creates a movement object with next and ended methods
- * 
- * @param {Function} movementFn - Generator function that produces movement
- * @returns {MovementObject} Movement object
- */
-function Movement(movementFn) {
-  let hasEnded = false;
-
-  /**
-   * Get the next movement update
-   * @returns {MovementResult|boolean} Movement values or false if ended
-   */
-  const next = () => {
-    try {
-      const result = movementFn();
-      if (result === false || result.x === false || result.y === false) {
-        hasEnded = true;
-        return { x: 0, y: 0 };
-      }
-      return result;
-    } catch (error) {
-      console.error("Error in movement:", error);
-      hasEnded = true;
-      return { x: 0, y: 0 };
-    }
-  };
-
-  /**
-   * Check if the movement has ended
-   * @returns {boolean} True if movement has ended
-   */
-  const ended = () => hasEnded;
-
-  return { next, ended };
-}
-
-/**
- * Create a jumping movement
- * 
- * @param {number} acceleration - Jump acceleration
- * @param {Function} killSignal - Function that returns true when jump should end
- * @param {Function} [end] - Callback when jump ends
- * @returns {MovementObject} Jumping movement
- */
-export const startJump = (acceleration, killSignal, end) => {
-  const jumpPower = acceleration;
-
-  let frameCount = 0; // This doesn't seem used correctly with frameMovement
-  const maxFrames = 20;
-  const minFrames = 6;
-
-  const jumpMovement = frameMovement(
-    maxFrames,
-    (frame) => { // 'frame' here counts DOWN from maxFrames
-      const strength = -jumpPower * (frame / maxFrames);
-
-      return strength;
-    },
-    () => {
-      return killSignal();
-    },
-    end
-  );
-
-  return Movement(() => {
-    const yValue = jumpMovement.next().value;
-    // Ensure we return an object, even if value is just a number
-    return { x: 0, y: (typeof yValue === 'number' ? yValue : 0) };
-  });
-};
-
-/**
- * Create a wall jumping movement
- * 
- * @param {number} acceleration - Jump acceleration
- * @param {number} direction - Direction (-1 for left, 1 for right)
- * @param {Function} killSignal - Function that returns true when jump should end
- * @param {Function} [end] - Callback when jump ends
- * @returns {MovementObject} Wall jump movement
- */
-export const startWallJump = (
-  acceleration,
-  direction,
-  killSignal,
-  end = () => { }
-) => {
-  const jumpPower = acceleration * 8;
-  const horizontalFactor = 0.2;
-
-  const fm = frameMovement(
-    20,
-    (frame) => {
-      const framePercent = frame / 20;
-      // Minimal horizontal force, normal vertical
-      const horizontalForce = direction * jumpPower * horizontalFactor * framePercent;
-      const verticalForce = -jumpPower * framePercent;
-
-      return {
-        x: horizontalForce,
-        y: verticalForce
-      };
-    },
-    killSignal,
-    end
-  );
-
-  return Movement(() => {
-    return fm.next().value;
-  });
-};
-
-/**
- * Create a direction change jump movement
- * 
- * @param {Object} unit - Actor object to apply the jump to
- * @param {number} acceleration - Jump acceleration
- * @param {number} lockFrames - Number of frames to lock horizontal movement
- * @param {number} totalFrames - Number of frames until jump has reached its peak
- * @param {Function} killSignal - Function that returns true when jump should end
- * @param {Function} [end] - Callback when jump ends
- * @returns {MovementObject} Direction change jump movement
- */
-export const startDirectionChangeJump = (unit, acceleration, lockFrames = 12, totalFrames = 24, killSignal, end = () => { }) => {
-  let frameCount = 0;
-
-  const jumpMovement = frameMovement(
-    totalFrames,
-    (frame) => {
-      frameCount++;
-      const strength = 0.18 * acceleration * (1 - (totalFrames / frameCount));
-
-      if (frameCount < lockFrames) {
-        const direction = Math.sign(unit._velocity.x);
-        const speedFactor = (frameCount / lockFrames) * 4;
-        unit._velocity.x = direction * (speedFactor);
-      }
-
-      return { x: 0, y: strength };
-    },
-    () => {
-      return frameCount >= totalFrames;
-    },
-    end
-  );
-
-  return Movement(() => {
-    return jumpMovement.next().value;
-  });
-};
-
-/**
- * Create a standard run movement
- * 
- * @param {number} acceleration - Run acceleration
- * @param {number} direction - Direction (-1 for left, 1 for right)
- * @param {Function} killSignal - Function that returns true when run should end
- * @returns {MovementObject} Running movement
- */
-export const startRun = (acceleration, direction, killSignal) => {
-  return Movement(() => {
-    if (killSignal()) {
-      return false;
-    }
-    return { x: direction * acceleration, y: 0 };
-  });
-};
-
-/**
- * Create a run movement in the opposite direction (for bonus acceleration)
- * 
- * @param {number} acceleration - Run acceleration
- * @param {number} direction - Direction (-1 for left, 1 for right)
- * @param {Function} killSignal - Function that returns true when run should end
- * @param {number} normalAcceleration - Acceleration to use after bonus period ends
- * @returns {MovementObject} Opposite direction run movement
- */
-export const startOppositeRun = (acceleration, direction, killSignal, normalAcceleration) => {
-  let framesLeft = 20;
-  let hasTransitioned = false;
-
-  return Movement(() => {
-    // Check if this movement should end due to key release
-    if (killSignal()) {
-      return false;
-    }
-
-    // If we still have bonus frames left
-    if (framesLeft > 0) {
-      framesLeft--;
-      return { x: direction * acceleration, y: 0 };
-    }
-    // Once bonus period is over, transition to normal acceleration
-    else {
-      // Log the transition once
-      if (!hasTransitioned) {
-        console.log('Bonus period ended, using normal acceleration');
-        hasTransitioned = true;
-      }
-
-      // Continue with normal acceleration
-      return { x: direction * normalAcceleration, y: 0 };
-    }
-  });
-};
-
-/**
- * Create a frame-by-frame movement generator
- * 
- * @param {number} frames - Number of frames to run
- * @param {Function} callback - Function that returns movement values for each frame
- * @param {Function} termination - Function that returns true when movement should end
- * @param {Function} [end] - Callback when movement ends
- * @returns {Generator} Movement generator
- */
-function* frameMovement(frames, callback, termination, end = () => { }) {
-  let currentFrame = frames;
-
+function* frameMovement(totalFrames, callback, shouldTerminate, onEnd = () => { }) {
+  let frame = totalFrames; // Represents remaining frames
+  // console.log(`frameMovement started: totalFrames=${totalFrames}, typeof shouldTerminate = ${typeof shouldTerminate}`);
   try {
-    while (currentFrame > 0 && !termination()) {
-      yield callback(currentFrame);
-      currentFrame--;
+    while (frame > 0) {
+      // Check termination signal first
+      if (typeof shouldTerminate !== 'function') {
+        console.error("frameMovement FATAL: shouldTerminate is not a function!", shouldTerminate);
+        break; // Stop if signal is invalid
+      }
+      if (shouldTerminate()) {
+        // console.log("frameMovement: Terminated early by signal.");
+        break;
+      }
+
+      // Execute callback, passing remaining frames
+      const result = callback(frame);
+      if (result === false) {
+        // console.log("frameMovement: Terminated early by callback.");
+        break;
+      }
+
+      yield result;
+      frame--;
     }
   } finally {
-    if (typeof end === 'function') {
-      end(currentFrame);
+    // console.log("frameMovement: Finished/Ended.");
+    // console.log(`frameMovement finally block: typeof onEnd = ${typeof onEnd}`, onEnd);
+    // Safety check still useful here
+    if (typeof onEnd === 'function') {
+      onEnd();
+    } else {
+      // console.warn("frameMovement finally block: onEnd was not a function!");
     }
   }
-
-  return false;
 }
+
 
 /**
- * Create a direction change bonus movement
- * 
- * @param {Object} unit - Unit to apply bonus to
- * @param {number} direction - Direction (-1 for left, 1 for right)
- * @param {number} frames - Number of frames to apply bonus
- * @param {number} bonus - Bonus amount
- * @param {number} decrease - How much to decrease bonus each frame
- * @returns {Generator} Bonus movement generator
+ * Creates a standard jumping movement generator. Applies upward force while active.
+ *
+ * @param {number} baseAcceleration - Base upward acceleration (should be positive, applied negatively).
+ * @param {() => boolean} shouldTerminate - Function returning true when jump force should stop (e.g., key release).
+ * @param {() => void} [onEnd] - Callback when jump finishes.
+ * @returns {Generator<MovementResult, void, unknown>} Jumping movement generator.
  */
-function* directionChangeBonus(unit, direction, frames, bonus, decrease) {
-  let inc = bonus;
-  yield true;
-  unit.bonusAcceleration = unit.bonusAcceleration || 0;
-  unit.bonusAcceleration += bonus;
-  while (frames-- > 0 && unit.runningDirection === direction) {
-    unit.bonusAcceleration -= decrease;
-    inc -= decrease;
-    yield true;
-  }
-  unit.bonusAcceleration -= inc;
-  return false;
-}
+export const startJump = (baseAcceleration, shouldTerminate, onEnd) => {
+  // console.log("Creating startJump generator...");
+  const maxFrames = configMovement.JUMP_MAX_FRAMES;
+  // Pass onEnd through to frameMovement
+  return frameMovement(
+    maxFrames,
+    (frame) => ({ x: 0, y: -baseAcceleration }), // Constant upward force
+    shouldTerminate,
+    onEnd
+  );
+};
+
+/**
+ * Creates a wall jumping movement generator. Applies force up and away from wall.
+ *
+ * @param {number} baseAcceleration - Base upward acceleration.
+ * @param {number} direction - Direction *away* from the wall (-1 for pushing right, 1 for pushing left).
+ * @param {() => boolean} shouldTerminate - Function returning true when jump should stop.
+ * @param {() => void} [onEnd] - Callback when jump finishes.
+ * @returns {Generator<MovementResult, void, unknown>} Wall jump movement generator.
+ */
+export const startWallJump = (baseAcceleration, direction, shouldTerminate, onEnd = () => { }) => {
+  // console.log("Creating startWallJump generator...");
+  const jumpPower = baseAcceleration; // Base force magnitude
+  const horizontalFactor = configMovement.WALL_JUMP_H_FACTOR;
+  const duration = configMovement.WALL_JUMP_DURATION;
+  // Pass onEnd through to frameMovement
+  return frameMovement(
+    duration,
+    (frame) => { // Calculate force based on remaining frames
+      const framePercent = frame / duration; // 1.0 down to near 0.0
+      const verticalForce = -jumpPower * framePercent;
+      const horizontalForce = direction * jumpPower * horizontalFactor * framePercent;
+      return { x: horizontalForce, y: verticalForce };
+    },
+    shouldTerminate,
+    onEnd
+  );
+};
+
+/**
+ * Creates a direction change jump generator. Higher jump with initial horizontal damping.
+ *
+ * @param {Object} actor - Actor object (used to dampen velocity directly).
+ * @param {number} baseAcceleration - Base upward acceleration.
+ * @param {() => boolean} shouldTerminate - Function returning true when jump should stop.
+ * @param {() => void} [onEnd] - Callback when jump finishes.
+ * @returns {Generator<MovementResult, void, unknown>} Direction change jump generator.
+ */
+export const startDirectionChangeJump = (actor, baseAcceleration, shouldTerminate, onEnd = () => { }) => {
+  // console.log("Creating startDirectionChangeJump generator...");
+  const jumpMultiplier = configMovement.DIR_CHANGE_JUMP_ACCEL_BONUS;
+  const lockFrames = configMovement.DIR_CHANGE_JUMP_LOCK_FRAMES;
+  const totalFrames = configMovement.DIR_CHANGE_JUMP_TOTAL_FRAMES;
+  let frameCount = 0; // Internal counter for lock phase, counts up
+
+  // Define the callback function separately
+  const directionJumpCallback = (frame) => { // frame counts down
+    frameCount++;
+    // Calculate jump strength (example: strong initial burst decaying)
+    const strength = -(baseAcceleration * jumpMultiplier) * (frame / totalFrames);
+
+    // Dampen horizontal velocity during initial frames (direct modification - use with care)
+    if (frameCount <= lockFrames && actor.velocity) {
+      actor.velocity.x *= 0.15; // Apply strong damping factor
+      if (Math.abs(actor.velocity.x) < 0.1) actor.velocity.x = 0;
+    }
+
+    return { x: 0, y: strength }; // Yield vertical force
+  };
+
+  // Pass arguments explicitly to frameMovement
+  return frameMovement(
+    totalFrames,
+    directionJumpCallback,
+    shouldTerminate,
+    onEnd
+  );
+};
+
+/**
+ * Creates a standard run movement generator. Applies constant horizontal force.
+ * Runs indefinitely until terminated by the signal.
+ *
+ * @param {number} acceleration - Horizontal acceleration per frame.
+ * @param {number} direction - Direction (-1 left, 1 right).
+ * @param {() => boolean} shouldTerminate - Function returning true when run should stop (e.g., key release).
+ * @returns {Generator<MovementResult, void, unknown>} Running movement generator.
+ */
+export const startRun = (acceleration, direction, shouldTerminate) => {
+  // console.log("Creating startRun generator...");
+  // Immediately invoked generator function expression (IIFE returning generator)
+  return (function*() {
+    try {
+      // console.log(`startRun executing loop (shouldTerminate=${shouldTerminate()})`);
+      while (!shouldTerminate()) {
+        yield { x: direction * acceleration, y: 0 };
+      }
+      // console.log("startRun loop finished (shouldTerminate became true).");
+    } finally {
+      // console.log("startRun generator ended.");
+    }
+  })();
+};
+
+/**
+ * Creates a run movement generator with initial bonus acceleration when changing direction.
+ * Runs indefinitely until terminated by the signal.
+ *
+ * @param {number} bonusAcceleration - Initial bonus horizontal acceleration.
+ * @param {number} direction - Direction (-1 left, 1 right).
+ * @param {() => boolean} shouldTerminate - Function returning true when run should stop.
+ * @param {number} normalAcceleration - Acceleration to use after bonus period ends.
+ * @returns {Generator<MovementResult, void, unknown>} Bonus run movement generator.
+ */
+export const startOppositeRun = (bonusAcceleration, direction, shouldTerminate, normalAcceleration) => {
+  // console.log("Creating startOppositeRun generator...");
+  const bonusFrames = configMovement.OPPOSITE_RUN_BONUS_FRAMES;
+  let framesLeft = bonusFrames; // Internal state for bonus duration
+
+  // Immediately invoked generator function expression
+  return (function*() {
+    try {
+      // console.log(`startOppositeRun executing loop (shouldTerminate=${shouldTerminate()})`);
+      while (!shouldTerminate()) {
+        let currentAcceleration = (framesLeft > 0) ? bonusAcceleration : normalAcceleration;
+        if (framesLeft > 0) framesLeft--; // Decrement bonus frame counter
+        yield { x: direction * currentAcceleration, y: 0 };
+      }
+      // console.log("startOppositeRun loop finished (shouldTerminate became true).");
+    } finally {
+      // console.log("startOppositeRun generator ended.");
+    }
+  })();
+};
