@@ -84,7 +84,7 @@ export const movement = {
   DIR_CHANGE_JUMP_TOTAL_FRAMES: 20, // Total duration for dir change jump impulse calculation
   OPPOSITE_RUN_BONUS_FRAMES: 20, // Duration of bonus acceleration when changing run direction
   OPPOSITE_RUN_ACCEL_BONUS: 2.0, // Multiplier for bonus run acceleration (relative to normal run)
-
+  JUMP_BUFFER_FRAMES: 6,
 };
 
 /**

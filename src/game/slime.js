@@ -10,6 +10,7 @@ import {
   startWallJump,
   startDirectionChangeJump
 } from './movements.js';
+import { createDelayedAction } from '../utils/delayedActions.js'; // Import the delay utility
 
 /**
  * @typedef {Object} SlimeAppearance
@@ -83,6 +84,8 @@ export function Slime(
   let isHuggingWall = 0;    // -1 left, 0 none, 1 right (wall contact)
   let canWallJump = true;   // Cooldown flag for wall jump
   let directionChangeFrames = 0; // Counter for direction change bonus window
+  let jumpBufferActive = false; // Flag for buffered jump input
+  let jumpBufferTimeoutId = null; // To store the ID of the buffer timer
 
   // Get global events (optional, consider passing them in or using a service)
   const delayedActionsEvent = events.get('delayed actions');
@@ -271,15 +274,35 @@ export function Slime(
     if (!isMidAir) { // Ground jump
       // Check for direction change bonus jump first
       if (directionChangeFrames > 0) {
-        console.log(`Slime ${playerIndex}: Direction Change Jump!`);
+        // console.log(`Slime ${playerIndex}: Direction Change Jump!`);
         initDirectionChangeJump();
       } else {
-        console.log(`Slime ${playerIndex}: Standard Ground Jump.`);
+        // console.log(`Slime ${playerIndex}: Standard Ground Jump.`);
         initJump(1.0); // Standard jump force multiplier
       }
     } else if (isHuggingWall !== 0 && canWallJump) { // Wall jump
       console.log(`Slime ${playerIndex}: Wall Jump!`);
       initWallJump(isHuggingWall);
+    } else if (isMidAir) {
+      // Optional: Check if falling and close to ground
+      // if (actorObject.velocity.y > 0 /* && actorObject.pos.y is near ground */) {
+
+      // Cancel any previous buffer timer
+      if (jumpBufferTimeoutId) {
+        // Need a way to cancel delayed actions, assuming delayedActions.js provides it
+        // For now, just set the flag and create a new timer
+
+      }
+
+      console.log(`Slime ${playerIndex}: Buffering jump.`); // Optional logging
+      jumpBufferActive = true;
+      // Start timer to clear buffer if not used
+      jumpBufferTimeoutId = createDelayedAction(configMovement.JUMP_BUFFER_FRAMES, () => {
+        console.log(`Slime ${playerIndex}: Jump buffer expired.`); // Optional logging
+        jumpBufferActive = false;
+        jumpBufferTimeoutId = null;
+      });
+      // }
     }
   };
 
@@ -287,6 +310,21 @@ export function Slime(
     console.log(`Slime ${playerIndex}: Jump released.`);
     isJumping = false; // Key is no longer held
     // The activeJumpMovement's kill signal will handle stopping the upward force
+    if (jumpBufferActive) {
+      // console.log(`Slime ${playerIndex}: Cancelling jump buffer due to key release.`); // Optional logging
+      jumpBufferActive = false; // Clear the buffer flag immediately
+
+      // If a timer was set to clear the buffer, cancel it now.
+      // This requires the cancelDelayedAction function and access to the active actions list.
+      if (jumpBufferTimeoutId) {
+        // Assuming cancelDelayedAction is available and works:
+        // cancelDelayedAction(jumpBufferTimeoutId, activeDelayedActions); // Replace activeDelayedActions with the actual list
+        // OR emit an event:
+        // cancelDelayedActionEvent.emit({ id: jumpBufferTimeoutId });
+
+        jumpBufferTimeoutId = null; // Clear the stored ID
+      }
+    }
   };
 
   const onMovementPress = (direction) => {
@@ -342,11 +380,23 @@ export function Slime(
 
   const onGroundHit = () => {
     console.log(`Slime ${playerIndex}: Ground hit.`);
-    if (isMidAir) { // Only trigger landing logic if previously in air
-      isMidAir = false;
-      canWallJump = true; // Reset wall jump ability on landing
-      // Optional: Reset jump state if needed, though key release handles stopping force
-      // isJumping = false;
+    if (jumpBufferActive) {
+      console.log(`Slime ${playerIndex}: Executing buffered jump!`); // Optional logging
+      // Need to ensure it's not a direction change jump unless intended
+      initJump(1.0); // Execute a standard ground jump
+      jumpBufferActive = false; // Clear the buffer flag
+      if (jumpBufferTimeoutId) {
+        // Cancel the timer if it exists (requires cancel functionality)
+        jumpBufferTimeoutId = null;
+      }
+      // Note: initJump sets isMidAir = true, which is correct
+    } else {
+      if (isMidAir) { // Only trigger landing logic if previously in air
+        isMidAir = false;
+        canWallJump = true; // Reset wall jump ability on landing
+        // Optional: Reset jump state if needed, though key release handles stopping force
+        // isJumping = false;
+      }
     }
   };
 
