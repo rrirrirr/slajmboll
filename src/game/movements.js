@@ -71,24 +71,41 @@ function* frameMovement(totalFrames, callback, shouldTerminate, onEnd = () => { 
   }
 }
 
-
 /**
- * Creates a standard jumping movement generator. Applies upward force while active.
+ * Creates a standard jumping movement generator. Applies upward force while active,
+ * ensuring a minimum duration even if the key is released early.
  *
  * @param {number} baseAcceleration - Base upward acceleration (should be positive, applied negatively).
- * @param {() => boolean} shouldTerminate - Function returning true when jump force should stop (e.g., key release).
+ * @param {() => boolean} keyReleaseSignal - Function returning true when jump key is released.
  * @param {() => void} [onEnd] - Callback when jump finishes.
  * @returns {Generator<MovementResult, void, unknown>} Jumping movement generator.
  */
-export const startJump = (baseAcceleration, shouldTerminate, onEnd) => {
-  // console.log("Creating startJump generator...");
+export const startJump = (baseAcceleration, keyReleaseSignal, onEnd) => {
+  // console.log("Creating startJump generator with min duration..."); // Optional logging
   const maxFrames = configMovement.JUMP_MAX_FRAMES;
-  // Pass onEnd through to frameMovement
+  const minFrames = configMovement.JUMP_MIN_DURATION_FRAMES; // Get min duration from config
+  let framesElapsed = 0; // Counter for elapsed frames
+
+  // Define the actual termination logic
+  const actualShouldTerminate = () => {
+    // Terminate only if:
+    // 1. The minimum duration has passed AND
+    // 2. The jump key has been released
+    return framesElapsed >= minFrames && keyReleaseSignal();
+  };
+
+  // Define the callback for frameMovement
+  const jumpCallback = (frame) => {
+    framesElapsed++; // Increment elapsed frames count
+    return { x: 0, y: -baseAcceleration }; // Apply upward force
+  };
+
+  // Pass the modified callback and termination logic to frameMovement
   return frameMovement(
     maxFrames,
-    (frame) => ({ x: 0, y: -baseAcceleration }), // Constant upward force
-    shouldTerminate,
-    onEnd
+    jumpCallback, // Use the callback that increments the counter
+    actualShouldTerminate, // Use the termination logic with min duration check
+    onEnd // Pass the original onEnd callback
   );
 };
 

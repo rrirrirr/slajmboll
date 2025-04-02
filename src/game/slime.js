@@ -382,6 +382,7 @@ export function Slime(
     console.log(`Slime ${playerIndex}: Ground hit.`);
     if (jumpBufferActive) {
       console.log(`Slime ${playerIndex}: Executing buffered jump!`); // Optional logging
+      console.log(isJumping)
       // Need to ensure it's not a direction change jump unless intended
       initJump(1.0); // Execute a standard ground jump
       jumpBufferActive = false; // Clear the buffer flag
