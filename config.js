@@ -86,6 +86,7 @@ export const movement = {
   OPPOSITE_RUN_ACCEL_BONUS: 2.0, // Multiplier for bonus run acceleration (relative to normal run)
   JUMP_BUFFER_FRAMES: 6,
   JUMP_MIN_DURATION_FRAMES: 4,
+  WALL_JUMP_LENIENCY_PIXELS: 10,
 };
 
 /**
