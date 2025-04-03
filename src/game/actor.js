@@ -241,11 +241,11 @@ export default function Actor(
     if (!collidedNet) { // Prevent double collision resolution if hit net
       if (nextPos.x - actualRadius < effectiveLeftBoundary) {
         nextPos.x = effectiveLeftBoundary + actualRadius;
-        if (Math.abs(velocity.x) > 0.1) { velocity.x = -velocity.x * configPhysics.BOUNCE_FACTOR; } else { velocity.x = 0; }
+        velocity.x = 0; // Stop horizontal movement instead of bouncing
         collidedWall = true; hasCollidedThisFrame = true; wallHitEvent.emit(-1);
       } else if (nextPos.x + actualRadius > effectiveRightBoundary) {
         nextPos.x = effectiveRightBoundary - actualRadius;
-        if (Math.abs(velocity.x) > 0.1) { velocity.x = -velocity.x * configPhysics.BOUNCE_FACTOR; } else { velocity.x = 0; }
+        velocity.x = 0; // Stop horizontal movement instead of bouncing
         collidedWall = true; hasCollidedThisFrame = true; wallHitEvent.emit(1);
       }
     }
