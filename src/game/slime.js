@@ -267,42 +267,57 @@ export function Slime(
   // --- Input Event Handlers ---
 
   const onJumpPressed = () => {
-    console.log(`Slime ${playerIndex}: Jump pressed. MidAir: ${isMidAir}, HuggingWall: ${isHuggingWall}, CanWallJump: ${canWallJump}, DirChangeFrames: ${directionChangeFrames}`);
     // Prevent starting a new jump if already holding jump key
     if (isJumping) return;
 
-    if (!isMidAir) { // Ground jump
-      // Check for direction change bonus jump first
+    // --- Ground Jump Logic (includes buffering) ---
+    if (!isMidAir) {
+      // (Keep existing ground jump and direction change jump logic here)
       if (directionChangeFrames > 0) {
-        // console.log(`Slime ${playerIndex}: Direction Change Jump!`);
         initDirectionChangeJump();
       } else {
-        // console.log(`Slime ${playerIndex}: Standard Ground Jump.`);
-        initJump(1.0); // Standard jump force multiplier
+        initJump(1.0);
       }
-    } else if (isHuggingWall !== 0 && canWallJump) { // Wall jump
-      console.log(`Slime ${playerIndex}: Wall Jump!`);
-      initWallJump(isHuggingWall);
-    } else if (isMidAir) {
-      // Optional: Check if falling and close to ground
-      // if (actorObject.velocity.y > 0 /* && actorObject.pos.y is near ground */) {
+      return; // Don't check for wall jump if grounded
+    }
 
-      // Cancel any previous buffer timer
-      if (jumpBufferTimeoutId) {
-        // Need a way to cancel delayed actions, assuming delayedActions.js provides it
-        // For now, just set the flag and create a new timer
+    // --- Mid-Air Jump Logic (Wall Jump Leniency & Buffering) ---
+    if (isMidAir) {
+      let wallToCheck = 0; // -1 for left, 1 for right
+      let distanceToWall = Infinity;
+      const slimeEdgeLeft = actorObject.pos.x - actorObject.realRadius;
+      const slimeEdgeRight = actorObject.pos.x + actorObject.realRadius;
 
+      // --- Calculate distance ONLY to side walls ---
+      const distToLeftWall = slimeEdgeLeft - constraints.leftBoundry;
+      const distToRightWall = constraints.rightBoundry - slimeEdgeRight;
+
+      // Determine the closest SIDE wall within leniency range
+      if (distToLeftWall <= configMovement.WALL_JUMP_LENIENCY_PIXELS) {
+        distanceToWall = distToLeftWall;
+        wallToCheck = -1; // Potential jump off left wall
+      }
+      // Check right wall only if left wall wasn't closer or within range
+      if (distToRightWall <= configMovement.WALL_JUMP_LENIENCY_PIXELS && distToRightWall < distanceToWall) {
+        distanceToWall = distToRightWall;
+        wallToCheck = 1; // Potential jump off right wall
       }
 
-      console.log(`Slime ${playerIndex}: Buffering jump.`); // Optional logging
-      jumpBufferActive = true;
-      // Start timer to clear buffer if not used
-      jumpBufferTimeoutId = createDelayedAction(configMovement.JUMP_BUFFER_FRAMES, () => {
-        console.log(`Slime ${playerIndex}: Jump buffer expired.`); // Optional logging
-        jumpBufferActive = false;
-        jumpBufferTimeoutId = null;
-      });
-      // }
+      // --- Check for Leniency Wall Jump (off side walls ONLY) ---
+      if (wallToCheck !== 0 && canWallJump) { // distanceToWall check is implicitly done above
+        // console.log(`Slime ${playerIndex}: Leniency Wall Jump! Dist: ${distanceToWall.toFixed(1)}, Wall: ${wallToCheck}`); // Optional logging
+        initWallJump(wallToCheck); // Pass the direction OF the wall (-1 left, 1 right)
+      }
+      // --- Buffer Jump if no wall jump performed ---
+      else {
+        // Buffer the jump if airborne and not wall jumping
+        if (jumpBufferTimeoutId) { /* Maybe cancel old timer */ }
+        jumpBufferActive = true;
+        jumpBufferTimeoutId = createDelayedAction(configMovement.JUMP_BUFFER_FRAMES, () => {
+          jumpBufferActive = false;
+          jumpBufferTimeoutId = null;
+        });
+      }
     }
   };
 
@@ -382,7 +397,6 @@ export function Slime(
     console.log(`Slime ${playerIndex}: Ground hit.`);
     if (jumpBufferActive) {
       console.log(`Slime ${playerIndex}: Executing buffered jump!`); // Optional logging
-      console.log(isJumping)
       // Need to ensure it's not a direction change jump unless intended
       initJump(1.0); // Execute a standard ground jump
       jumpBufferActive = false; // Clear the buffer flag
