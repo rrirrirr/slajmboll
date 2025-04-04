@@ -420,6 +420,14 @@ export function Slime(
     isHuggingWall = direction; // Update wall contact state
     // If hitting a wall, potentially cancel opposite run bonus?
     // hasDirectionChangeBonus = false;
+    // if (slimeElement) {
+    //   slimeElement.classList.remove('hugging-wall-left', 'hugging-wall-right'); // Remove old classes first
+    //   if (direction === -1) {
+    //     slimeElement.classList.add('hugging-wall-left');
+    //   } else if (direction === 1) {
+    //     slimeElement.classList.add('hugging-wall-right');
+    //   }
+    // }
   };
 
   const onNetHit = (direction) => {
@@ -501,7 +509,8 @@ export function Slime(
         actorObject.pos,
         actorObject.velocity, // Pass the renamed 'velocity' property
         slimeWidth,
-        slimeHeight
+        slimeHeight,
+        isHuggingWall
       );
     } else {
       console.error(`Slime ${slimeId}: Cannot render, invalid actor state.`);

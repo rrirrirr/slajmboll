@@ -85,40 +85,72 @@ export function updateSlimeTeamAppearance(slimeElement, teamNumber) {
  * @param {number} width - Width of the slime
  * @param {number} height - Base height of the slime
  */
-export function renderSlime(slimeElement, position, velocity, width, height) {
-  // Apply horizontal position
+export function renderSlime(slimeElement, position, velocity, width, height, isHuggingWall) {
+  // Apply position, width, height (existing logic - keep)
   slimeElement.style.left = `${position.x - width / 2}px`;
-
-  // Important: Keep the bottom of the slime firmly on the ground at all times
   slimeElement.style.top = `${position.y - height}px`;
-
-  // Keep width fixed - no stretching horizontally
   slimeElement.style.width = `${width}px`;
   slimeElement.style.height = `${height}px`;
 
+  // --- Calculate Base Border Radius based on Velocity (existing logic - keep) ---
   const horizontalEffect = Math.min(Math.abs(velocity.x) * 0.5, 15);
-  const directionSign = Math.sign(velocity.x);
+  const velocityDirectionSign = Math.sign(velocity.x);
+  let radiusLeft = width - (velocityDirectionSign < 0 ? horizontalEffect : -horizontalEffect);
+  let radiusRight = width - (velocityDirectionSign > 0 ? horizontalEffect : -horizontalEffect);
 
-  // When moving, the leading edge of the slime gets more pointed
-  // and the trailing edge gets more rounded
-  slimeElement.style.borderTopLeftRadius = `${width - (directionSign < 0 ? horizontalEffect : -horizontalEffect)}px`;
-  slimeElement.style.borderTopRightRadius = `${width - (directionSign > 0 ? horizontalEffect : -horizontalEffect)}px`;
-
-  // Return to perfect half-circle when still
+  // Reset to perfect half-circle if still (existing logic - keep)
   if (Math.abs(velocity.x) < 0.1) {
-    slimeElement.style.borderTopLeftRadius = `${width}px`;
-    slimeElement.style.borderTopRightRadius = `${width}px`;
+    radiusLeft = width;
+    radiusRight = width;
   }
 
-  // Optional: Add a subtle "squish" effect by adding a transform
-  // This doesn't affect the position, just the visual appearance
-  if (Math.abs(velocity.x) > 0.5) {
-    const skewDegree = Math.min(Math.abs(velocity.x) * 0.3, 5) * directionSign;
-    slimeElement.style.transform = `skewX(${-skewDegree}deg)`;
-  } else {
-    slimeElement.style.transform = 'skewX(0deg)';
+  // --- ADJUST BORDER RADIUS FOR WALL HUGGING (existing logic - keep) ---
+  const flatEdgeRadius = width * 0.75; // Your preferred value (was 0.65 before, adjust if needed)
+
+  if (isHuggingWall === -1) { // Hugging left wall
+    radiusLeft = flatEdgeRadius; // Make the left edge flatter
+  } else if (isHuggingWall === 1) { // Hugging right wall
+    radiusRight = flatEdgeRadius; // Make the right edge flatter
   }
-}
+  // Apply the final calculated border radii (existing logic - keep)
+  slimeElement.style.borderTopLeftRadius = `${radiusLeft}px`;
+  slimeElement.style.borderTopRightRadius = `${radiusRight}px`;
+
+
+  // --- Handle Skew and Scale Transforms ---
+  let skewDegree = 0;
+  let scaleY = 1.0; // <<< ADD: Initialize scaleY to default
+  const wallHugFlattenAmount = 0.95;
+  const wallHugSkewAmount = -12;
+
+  if (isHuggingWall !== 0) {
+    // --- Skew TOWARDS the wall when hugging ---
+    if (isHuggingWall === -1) { // Hugging left wall
+      skewDegree = wallHugSkewAmount; // Adjust sign if needed based on desired lean
+    } else { // Hugging right wall (isHuggingWall === 1)
+      skewDegree = -wallHugSkewAmount; // Adjust sign if needed based on desired lean
+    }
+    // <<< ADD: Set scaleY when hugging >>>
+    scaleY = wallHugFlattenAmount;
+    // <<< ADD: Set transform-origin for scaleY >>>
+    slimeElement.style.transformOrigin = (isHuggingWall === -1) ? 'right bottom' : 'left bottom';
+
+  } else {
+    // --- Skew based on VELOCITY when not hugging ---
+    if (Math.abs(velocity.x) > 0.5) {
+      skewDegree = Math.min(Math.abs(velocity.x) * 0.3, 5) * velocityDirectionSign;
+    }
+    // scaleY remains 1.0 (default)
+    // <<< ADD: Reset transform origin when not hugging >>>
+    slimeElement.style.transformOrigin = 'center bottom';
+  }
+
+  // Apply the combined calculated transforms
+  // --- MODIFY THIS LINE ---
+  // It now includes both skewX() and scaleY()
+  slimeElement.style.transform = `skewX(${-skewDegree}deg) scaleY(${scaleY})`;
+
+} // End renderSlime
 
 /**
  * Creates an effect when slime performs a special move
