@@ -178,7 +178,7 @@ export function Slime(
     if (activeJumpMovement) actorObject.removeMovement(activeJumpMovement);
     const baseJumpForce = actorObject.jumpAcceleration;
     const jumpDirection = -wallDirection;
-    canWallJump = false;
+    // canWallJump = false; // change to true if we only want to allow one wall jump per air time
     // isMidAir = true; // Let update loop handle
     isJumping = true;
     // Optional Animation event emit
