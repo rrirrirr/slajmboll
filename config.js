@@ -1,4 +1,5 @@
 /**
+WALL_SLIDE_VERTICAL_FRICTION_FACTOR: 0.90,
  * Game configuration parameters
  * @module config
  */
@@ -29,6 +30,8 @@ export const physics = {
   BALL_MASS: 1,
   /** Mass of the slime for collision calculations */
   SLIME_MASS: 5,
+  WALL_SLIDE_FRICTION_UP: 1.00,
+  WALL_SLIDE_FRICTION_DOWN: 0.85,
 };
 
 /**
