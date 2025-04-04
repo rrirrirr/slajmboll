@@ -175,7 +175,6 @@ export function Slime(
   };
 
   const initWallJump = (wallDirection) => {
-    // ... (keep existing implementation using startWallJump) ...
     if (activeJumpMovement) actorObject.removeMovement(activeJumpMovement);
     const baseJumpForce = actorObject.jumpAcceleration;
     const jumpDirection = -wallDirection;
