@@ -165,6 +165,12 @@ body {
   border-top-right-radius: 70px;
   border-bottom: 0;
   z-index: 50;
+  transform: scaleY(0.15); /* Adjust scale factor as needed */
+  transform-origin: right bottom;
+
+  transition: transform 0.1s ease-out, border-radius 0.05s linear; /* Add transform transition */
+  /* Optional: Define default transform-origin */
+  /* transform-origin: center bottom; */
 }
 
 .teamColorOne {
