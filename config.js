@@ -80,6 +80,7 @@ export const movement = {
   DIRECTION_CHANGE_WINDOW: 15,
   JUMP_MAX_FRAMES: 20,          // Duration jump force can be applied if key held
   JUMP_MIN_FRAMES: 6,           // Minimum frames jump force is applied (unused currently?)
+  MULTI_WALL_JUMPS_ALLOWED: true,
   WALL_JUMP_H_FACTOR: 5.2,      // Horizontal force multiplier for wall jump
   WALL_JUMP_DURATION: 20,       // Frames wall jump force is applied
   DIR_CHANGE_JUMP_ACCEL_BONUS: 1.2, // Multiplier for direction change jump force
